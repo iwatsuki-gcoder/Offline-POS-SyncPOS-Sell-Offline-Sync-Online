@@ -17,29 +17,6 @@ OfflinePOS is a point-of-sale application that keeps working even when the inter
 - Plugs into the same online/offline state machine used by the sync engine — no separate infrastructure needed
 - General-purpose: handles both data queries ("What sold best today?") and sync troubleshooting ("Why didn't yesterday's transactions sync?")
 
-┌─────────────────────────────────────────┐
-│              POS Client (UI)             │
-│         [Sales | Inventory | Chat]       │
-└──────────────┬───────────────┬───────────┘
-               │               │
-     ┌─────────▼───────┐  ┌────▼──────────┐
-     │  Local SQLite    │  │  Chat Handler │
-     │  (source of      │◄─┤  (checks conn │
-     │   truth offline) │  │   state first)│
-     └─────────┬────────┘  └────┬──────────┘
-               │                │
-     ┌─────────▼────────┐   ┌───▼─────────────┐
-     │ Priority Sync     │   │ Offline: local  │
-     │ Scheduler         │   │ query engine    │
-     │ (threads, locks,  │   │ Online: LLM API │
-     │  retry/backoff)   │   │ call            │
-     └─────────┬────────┘   └─────────────────┘
-               │
-     ┌─────────▼────────────┐
-     │ Central DB (sync +   │
-     │ conflict resolution) │
-     └───────────────────────┘
-
 **Other features:** audit logging, encryption at rest, chaos testing for sync failures, and a health dashboard for monitoring sync status.
 ___________________________________________________________________
 TEAM ID_T178
