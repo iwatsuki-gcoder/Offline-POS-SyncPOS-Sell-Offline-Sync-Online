@@ -1,0 +1,136 @@
+import sqlite3
+import threading
+import time
+import uuid
+
+# Database Configuration
+LOCAL_DB = "syncpos_local.db"
+
+def init_local_db():
+    """Initializes the local SQLite database for offline operations."""
+    conn = sqlite3.connect(LOCAL_DB)
+    cursor = conn.cursor()
+    
+    # Products Table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS products (
+            product_id TEXT PRIMARY KEY,
+            name TEXT,
+            price REAL,
+            stock INTEGER
+        )
+    ''')
+    
+    # Transactions Table (Local source of truth)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS transactions (
+            transaction_id TEXT PRIMARY KEY,
+            total_amount REAL,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            synced INTEGER DEFAULT 0
+        )
+    ''')
+    
+    # Insert mock product for testing
+    cursor.execute("INSERT OR IGNORE INTO products VALUES ('101', 'Widget', 19.99, 50)")
+    
+    conn.commit()
+    conn.close()
+
+def process_offline_transaction(cart_items):
+    """Processes a transaction locally and marks it as pending for sync."""
+    conn = sqlite3.connect(LOCAL_DB)
+    cursor = conn.cursor()
+    
+    transaction_id = str(uuid.uuid4())
+    total_amount = 0.0
+    
+    try:
+        for item in cart_items:
+            product_id, quantity = item
+            
+            # Check stock
+            cursor.execute("SELECT price, stock FROM products WHERE product_id = ?", (product_id,))
+            result = cursor.fetchone()
+            
+            if result and result[1] >= quantity:
+                price = result[0]
+                total_amount += (price * quantity)
+                
+                # Update local stock
+                new_stock = result[1] - quantity
+                cursor.execute("UPDATE products SET stock = ? WHERE product_id = ?", (new_stock, product_id))
+            else:
+                print(f"Error: Product {product_id} out of stock or not found.")
+                conn.rollback()
+                return False
+                
+        # Record transaction with synced = 0 (False)
+        cursor.execute(
+            "INSERT INTO transactions (transaction_id, total_amount, synced) VALUES (?, ?, 0)",
+            (transaction_id, total_amount)
+        )
+        
+        conn.commit()
+        print(f"Transaction {transaction_id} successful. Total: ${total_amount:.2f}")
+        print("Receipt printed locally.")
+        return True
+        
+    except Exception as e:
+        print(f"Transaction failed: {e}")
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
+def sync_to_central_db():
+    """Background thread that safely pushes pending transactions to MySQL."""
+    while True:
+        try:
+            local_conn = sqlite3.connect(LOCAL_DB)
+            local_cursor = local_conn.cursor()
+            
+            # Fetch all unsynced transactions
+            local_cursor.execute("SELECT * FROM transactions WHERE synced = 0")
+            pending_transactions = local_cursor.fetchall()
+            
+            if pending_transactions:
+                print(f"[Sync Engine] Found {len(pending_transactions)} pending transactions.")
+                
+                # TODO: Implement actual MySQL connection here in Phase 2
+                # central_conn = mysql.connector.connect(...)
+                
+                for txn in pending_transactions:
+                    txn_id = txn[0]
+                    # Simulate successful push to Central MySQL DB
+                    # central_cursor.execute("INSERT INTO transactions ...", txn)
+                    
+                    # Mark as synced locally
+                    local_cursor.execute("UPDATE transactions SET synced = 1 WHERE transaction_id = ?", (txn_id,))
+                    print(f"[Sync Engine] Successfully synced transaction {txn_id}.")
+                
+                local_conn.commit()
+            
+            local_conn.close()
+            
+        except Exception as e:
+            print(f"[Sync Engine] Connection error or sync failure: {e}. Retrying later.")
+            
+        # Back off before next sync attempt
+        time.sleep(5)
+
+if __name__ == "__main__":
+    # 1. Initialize local SQLite DB
+    init_local_db()
+    
+    # 2. Start the sync engine as a background daemon thread
+    sync_thread = threading.Thread(target=sync_to_central_db, daemon=True)
+    sync_thread.start()
+    
+    # 3. Simulate cashier usage on the main thread
+    print("--- SyncPOS Terminal Active ---")
+    cart = [('101', 2)] # Cashier scans 2 Widgets
+    process_offline_transaction(cart)
+    
+    # 4. Keep main thread alive briefly to allow background sync to process
+    time.sleep(10)
