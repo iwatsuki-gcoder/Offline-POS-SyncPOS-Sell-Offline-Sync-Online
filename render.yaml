@@ -1,0 +1,18 @@
+# Render Blueprint — one-click deploy of OfflinePOS.
+# Render dashboard → New → Blueprint → select this repo → Apply.
+services:
+  - type: web
+    name: offlinepos
+    runtime: python
+    plan: free
+    buildCommand: pip install -r web/requirements.txt
+    startCommand: uvicorn web.backend.app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      # Probe real connectivity in the cloud (the local demo default is manual).
+      - key: OFFLINEPOS_NET_MODE
+        value: auto
+      # Optional: uncomment and set in the Render dashboard (never commit keys).
+      # - key: OFFLINEPOS_LLM_API_KEY
+      #   sync: false
