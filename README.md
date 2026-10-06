@@ -35,6 +35,16 @@ Runs 7 simulation scenarios (offline sale→sync, price conflict,
 delta merge, flaky-link idempotency, billing priority, offline chatbot,
 clock skew). Results land in `SIMULATION_RESULTS.md`.
 
+## Web app (macOS / Windows / Linux)
+```bash
+python3 -m venv .venv && source .venv/bin/activate  # `.venv\Scripts\activate` on Windows
+pip install -r web/requirements.txt
+uvicorn web.backend.app:app --host 127.0.0.1 --port 8000
+# open http://localhost:8000
+```
+Billing UI, sync dashboard and chatbot in the browser; the server runs on
+the terminal itself so offline-first still holds. See `web/README.md`.
+
 ## Layout
 ```
 offlinepos/        # product code

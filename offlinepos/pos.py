@@ -50,9 +50,13 @@ class Terminal:
         self.net.set_online(value)
 
     # -- catalog --------------------------------------------------------------
-    def seed_catalog(self, items: list[tuple[str, str, float, int]]):
-        for pid, name, price, stock in items:
-            self.db.seed_product(pid, name, price, stock, self.terminal_id)
+    def seed_catalog(self, items: list[tuple]):
+        """Items: (product_id, name, price, stock[, barcode])."""
+        for item in items:
+            pid, name, price, stock = item[:4]
+            barcode = item[4] if len(item) > 4 else None
+            self.db.seed_product(pid, name, price, stock, self.terminal_id,
+                                 barcode=barcode)
 
     # -- billing ---------------------------------------------------------------
     def scan(self, product_id: str, qty: int = 1):
@@ -77,6 +81,19 @@ class Terminal:
 
     def checkout(self, timeout=30) -> dict:
         return self.checkout_async().result(timeout=timeout)
+
+    def checkout_items(self, items: list[tuple[str, int]], timeout=30) -> dict:
+        """Checkout an explicit item list (used by the web API).
+
+        Bypasses the interactive cart so concurrent API requests can't
+        interleave. Still runs at BILLING priority through one ACID txn.
+        """
+        def _do():
+            sale = self.db.create_sale(list(items), self.terminal_id)
+            return self._receipt(sale)
+
+        return self.scheduler.submit(BILLING, _do, name="checkout").result(
+            timeout=timeout)
 
     def _receipt(self, sale: dict) -> dict:
         lines = [f"=== OfflinePOS receipt ({self.terminal_id}) ==="]

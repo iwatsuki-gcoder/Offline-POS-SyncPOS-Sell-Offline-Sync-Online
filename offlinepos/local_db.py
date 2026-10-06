@@ -91,6 +91,13 @@ class LocalDB:
         init.execute("PRAGMA journal_mode=WAL;")
         init.execute("PRAGMA synchronous=NORMAL;")
         init.executescript(SCHEMA)
+        # migration: barcodes were added after the first schema version
+        try:
+            init.execute("ALTER TABLE products ADD COLUMN barcode TEXT")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+        init.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_products_barcode "
+                     "ON products(barcode)")
         init.commit()
         init.close()
 
@@ -120,21 +127,30 @@ class LocalDB:
         return self.clock()
 
     # -- products ----------------------------------------------------------
-    def seed_product(self, product_id, name, price, stock, terminal_id="seed"):
+    def seed_product(self, product_id, name, price, stock, terminal_id="seed",
+                     barcode=None):
         with self.write_txn() as c:
             c.execute(
-                """INSERT INTO products(product_id,name,price,stock,version,updated_at,updated_by)
-                   VALUES(?,?,?,?,?, ?, ?)
+                """INSERT INTO products(product_id,name,price,stock,version,updated_at,updated_by,barcode)
+                   VALUES(?,?,?,?,?, ?, ?, ?)
                    ON CONFLICT(product_id) DO UPDATE SET
                      name=excluded.name, price=excluded.price, stock=excluded.stock,
                      version=products.version+1, updated_at=excluded.updated_at,
-                     updated_by=excluded.updated_by""",
-                (product_id, name, price, stock, 1, self.now(), terminal_id),
+                     updated_by=excluded.updated_by, barcode=excluded.barcode""",
+                (product_id, name, price, stock, 1, self.now(), terminal_id,
+                 barcode),
             )
 
     def get_product(self, product_id) -> dict | None:
         row = self._conn().execute(
             "SELECT * FROM products WHERE product_id=?", (product_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+    def get_product_by_barcode(self, barcode: str) -> dict | None:
+        """What the scanner calls: barcode -> product."""
+        row = self._conn().execute(
+            "SELECT * FROM products WHERE barcode=?", (barcode.strip(),)
         ).fetchone()
         return dict(row) if row else None
 
