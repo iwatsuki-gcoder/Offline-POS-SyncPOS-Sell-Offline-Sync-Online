@@ -1,0 +1,282 @@
+"""OfflinePOS simulation suite.
+
+Seven scenarios covering the OS + DBMS concepts in the project:
+  S1 offline sale -> sync (delta sync, ACID local sale)
+  S2 price conflict -> last-write-wins + conflict log
+  S3 concurrent offline sales -> commutative stock-delta merge
+  S4 flaky link -> exponential backoff + idempotent exactly-once
+  S5 priority scheduling -> billing never waits on background work
+  S6 hybrid chatbot -> offline intent answering
+  S7 clock skew -> skewed timestamp wins LWW, conflict logged for review
+
+Run:  python3 simulations/run_all.py
+Writes: SIMULATION_RESULTS.md
+"""
+from __future__ import annotations
+
+import os
+import sys
+import tempfile
+import time
+import traceback
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from offlinepos.central_db import CentralDB
+from offlinepos.pos import Terminal
+from offlinepos.scheduler import SYNC, MAINTENANCE
+
+RESULTS: list[dict] = []
+
+
+def scenario(name):
+    def deco(fn):
+        def wrapper():
+            t0 = time.monotonic()
+            try:
+                details = fn()
+                RESULTS.append({"name": name, "passed": True,
+                                "details": details,
+                                "duration_s": round(time.monotonic() - t0, 2)})
+                print(f"[PASS] {name}")
+            except Exception as e:  # noqa: BLE001
+                RESULTS.append({"name": name, "passed": False,
+                                "details": f"{e}\n{traceback.format_exc(limit=3)}",
+                                "duration_s": round(time.monotonic() - t0, 2)})
+                print(f"[FAIL] {name}: {e}")
+        return wrapper
+    return deco
+
+
+def make_env():
+    tmp = tempfile.mkdtemp(prefix="offlinepos_")
+    central = CentralDB(os.path.join(tmp, "central.db"))
+    return tmp, central
+
+
+def make_terminal(tid, tmp, central, clock=None):
+    t = Terminal(tid, os.path.join(tmp, tid), central, clock=clock)
+    t.start()
+    return t
+
+
+# ---------------------------------------------------------------- S1
+@scenario("S1: offline sale, then sync")
+def s1():
+    tmp, central = make_env()
+    a = make_terminal("T-A", tmp, central)
+    try:
+        a.seed_catalog([("W1", "Widget", 10.0, 20)])
+        central.seed_product("W1", "Widget", 10.0, 20)
+        a.set_online(False)
+        a.scan("W1", 2)
+        rcpt = a.checkout()
+        assert rcpt["sale"]["total"] == 20.0
+        assert a.db.get_product("W1")["stock"] == 18, "local stock must drop at sale time"
+        assert a.db.pending_counts()["txns"] == 1
+        a.set_online(True)
+        rep = a.sync_now()
+        assert rep.ok and rep.pushed_txns == 1 and rep.retries == 0
+        assert central.txn_count() == 1
+        assert central.get_product("W1")["stock"] == 18
+        return (f"sale total=${rcpt['sale']['total']:.2f}, local stock 20->18 while offline, "
+                f"sync pushed 1 txn, central stock=18, central txns=1")
+    finally:
+        a.close()
+
+
+# ---------------------------------------------------------------- S2
+@scenario("S2: price conflict -> last-write-wins")
+def s2():
+    tmp, central = make_env()
+    a = make_terminal("T-A", tmp, central)
+    b = make_terminal("T-B", tmp, central)
+    try:
+        for t in (a, b):
+            t.seed_catalog([("W2", "Gadget", 10.0, 50)])
+            t.set_online(False)
+        central.seed_product("W2", "Gadget", 10.0, 50)
+        base = time.time()
+        a.db.update_product_price("W2", 11.0, "T-A", ts=base + 1)  # older write
+        b.db.update_product_price("W2", 12.0, "T-B", ts=base + 2)  # newer write
+        a.set_online(True)
+        b.set_online(True)
+        ra = a.sync_now()
+        rb = b.sync_now()
+        price = central.get_product("W2")["price"]
+        assert price == 12.0, f"newer write must win, got {price}"
+        n_conf = len(b.db.list_conflicts())
+        assert n_conf >= 1, "losing/overwriting write must be logged"
+        return (f"A set $11 (older), B set $12 (newer); central price=${price:.2f}; "
+                f"conflicts logged on B: {n_conf} "
+                f"(resolution: {b.db.list_conflicts()[0]['resolution']})")
+    finally:
+        a.close(); b.close()
+
+
+# ---------------------------------------------------------------- S3
+@scenario("S3: concurrent offline sales -> delta merge")
+def s3():
+    tmp, central = make_env()
+    a = make_terminal("T-A", tmp, central)
+    b = make_terminal("T-B", tmp, central)
+    try:
+        for t in (a, b):
+            t.seed_catalog([("W3", "Sprocket", 5.0, 100)])
+            t.set_online(False)
+        central.seed_product("W3", "Sprocket", 5.0, 100)
+        a.scan("W3", 2); a.checkout()   # delta -2
+        b.scan("W3", 3); b.checkout()   # delta -3
+        a.set_online(True); b.set_online(True)
+        a.sync_now()
+        assert central.get_product("W3")["stock"] == 98
+        b.sync_now()
+        central_stock = central.get_product("W3")["stock"]
+        assert central_stock == 95, f"expected 95, got {central_stock}"
+        a.sync_now()  # converge A via pull
+        assert a.db.get_product("W3")["stock"] == 95
+        assert b.db.get_product("W3")["stock"] == 95
+        return ("A sold 2, B sold 3 while offline; central stock 100->95 "
+                "(commutative delta merge, no conflict); both terminals converged to 95")
+    finally:
+        a.close(); b.close()
+
+
+# ---------------------------------------------------------------- S4
+@scenario("S4: flaky link -> backoff + exactly-once")
+def s4():
+    tmp, central = make_env()
+    c = make_terminal("T-C", tmp, central)
+    try:
+        c.seed_catalog([("W4", "Bolt", 2.0, 30)])
+        central.seed_product("W4", "Bolt", 2.0, 30)
+        c.set_online(False)
+        c.scan("W4", 1); c.checkout()
+        c.set_online(True)
+        c.chaos.fail_push_times = 3  # drop the connection 3 times mid-push
+        rep = c.sync_now()
+        assert rep.ok, f"sync should succeed after retries: {rep.error}"
+        assert rep.retries == 3, f"expected 3 retries, got {rep.retries}"
+        assert central.txn_count() == 1, "idempotency key must prevent duplicates"
+        # now prove a duplicated batch is a no-op
+        c.set_online(False)
+        c.scan("W4", 1); c.checkout()
+        c.set_online(True)
+        c.chaos.duplicate_push = True
+        rep2 = c.sync_now()
+        assert central.txn_count() == 2, "exactly one new txn despite duplicate push"
+        assert rep2.deduped_txns >= 1
+        return (f"3 mid-push drops -> 3 backoff retries then success; "
+                f"central has exactly 1 txn (no dupes); duplicate-push test deduped "
+                f"{rep2.deduped_txns} txn(s), central total=2")
+    finally:
+        c.close()
+
+
+# ---------------------------------------------------------------- S5
+@scenario("S5: billing preempts saturated background lane")
+def s5():
+    tmp, central = make_env()
+    d = make_terminal("T-D", tmp, central)
+    try:
+        d.seed_catalog([("W5", "Nut", 1.0, 100)])
+        # saturate the background worker with a 2s sync-shaped job
+        d.scheduler.submit(SYNC, lambda: time.sleep(2), name="long-sync")
+        d.scheduler.submit(MAINTENANCE, lambda: time.sleep(2), name="maint-1")
+        d.scan("W5", 4)
+        t0 = time.monotonic()
+        fut = d.checkout_async()  # BILLING lane: dedicated worker
+        receipt = fut.result(timeout=10)
+        elapsed = time.monotonic() - t0
+        assert receipt["sale"]["total"] == 4.0
+        assert elapsed < 1.0, f"billing waited {elapsed:.2f}s on background work!"
+        stats = d.scheduler.wait_stats()
+        return (f"background lane blocked ~2s; checkout completed in {elapsed:.3f}s "
+                f"via dedicated billing worker; wait stats: {stats['BILLING']}")
+    finally:
+        d.close()
+
+
+# ---------------------------------------------------------------- S6
+@scenario("S6: chatbot answers offline")
+def s6():
+    tmp, central = make_env()
+    e = make_terminal("T-E", tmp, central)
+    try:
+        e.seed_catalog([("W6", "Widget", 10.0, 20)])
+        e.set_online(False)  # offline: no LLM, local intents only
+        e.scan("W6", 2); e.checkout()
+        sales = e.ask("total sales today")
+        stock = e.ask("stock of Widget")
+        sync = e.ask("sync status")
+        huh = e.ask("blargh zzz")
+        assert "$20.00" in sales, sales
+        assert "18" in stock, stock
+        assert "OFFLINE" in sync and "pending" in sync, sync
+        assert "offline" in huh.lower(), huh
+        assert e.chatbot.mode == "offline"
+        e.set_online(True)
+        assert e.chatbot.mode == "online", "bot must follow the shared state machine"
+        return (f"offline answers OK: sales='{sales}', stock='{stock}', "
+                f"sync='{sync}'; mode followed net OFFLINE->ONLINE")
+    finally:
+        e.close()
+
+
+# ---------------------------------------------------------------- S7
+@scenario("S7: clock skew -> LWW still decides, conflict logged")
+def s7():
+    tmp, central = make_env()
+    a = make_terminal("T-A", tmp, central)
+    skewed_clock = lambda: time.time() + 5000  # T-B's clock runs 5000s fast
+    b = make_terminal("T-B", tmp, central, clock=skewed_clock)
+    try:
+        for t in (a, b):
+            t.seed_catalog([("W7", "Gizmo", 10.0, 40)])
+            t.set_online(False)
+        central.seed_product("W7", "Gizmo", 10.0, 40)
+        base = time.time()
+        a.db.update_product_price("W7", 20.0, "T-A", ts=base)       # real write
+        b.db.update_product_price("W7", 30.0, "T-B")                # skewed ts wins
+        a.set_online(True); b.set_online(True)
+        a.sync_now(); rb = b.sync_now()
+        price = central.get_product("W7")["price"]
+        assert price == 30.0, f"skewed newer ts wins LWW, got {price}"
+        assert len(b.db.list_conflicts()) >= 1
+        return (f"T-B clock +5000s: its $30 write carried the newer timestamp and won "
+                f"LWW (central=${price:.2f}); conflict logged for manual review "
+                f"-> '{b.db.list_conflicts()[0]['resolution']}' (known limitation)")
+    finally:
+        a.close(); b.close()
+
+
+def write_report():
+    passed = sum(1 for r in RESULTS if r["passed"])
+    lines = ["# OfflinePOS Simulation Results",
+             "",
+             f"Ran {len(RESULTS)} scenarios, **{passed} passed**, "
+             f"{len(RESULTS) - passed} failed.",
+             "",
+             "| Scenario | Result | Time (s) |",
+             "|---|---|---|"]
+    for r in RESULTS:
+        mark = "PASS" if r["passed"] else "FAIL"
+        lines.append(f"| {r['name']} | {mark} | {r['duration_s']} |")
+    lines += ["", "## Details", ""]
+    for r in RESULTS:
+        lines.append(f"### {r['name']} - {'PASS' if r['passed'] else 'FAIL'}")
+        lines.append("")
+        lines.append(r["details"])
+        lines.append("")
+    out = os.path.join(os.path.dirname(__file__), "..", "SIMULATION_RESULTS.md")
+    with open(out, "w") as f:
+        f.write("\n".join(lines) + "\n")
+    print(f"\nReport written to {os.path.abspath(out)}")
+    return passed == len(RESULTS)
+
+
+if __name__ == "__main__":
+    for fn in (s1, s2, s3, s4, s5, s6, s7):
+        fn()
+    ok = write_report()
+    sys.exit(0 if ok else 1)

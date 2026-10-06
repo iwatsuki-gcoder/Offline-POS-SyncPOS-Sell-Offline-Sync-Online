@@ -1,26 +1,59 @@
-# Offline-POS-SyncPOS-Sell-Offline-Sync-Online
+# OfflinePOS: A Priority-Scheduled, Conflict-Aware Retail Sync System
 
-**OfflinePOS: A Priority-Scheduled, Conflict-Aware Retail Sync System**
+**Team Kernel Panic** — OS + DBMS course project.
 
-OfflinePOS is a point-of-sale application that keeps working even when the internet doesn't. It runs entirely offline using local SQLite storage, then automatically syncs to a central MySQL/MS SQL Server database the moment connectivity returns. It also includes a hybrid AI chatbot assistant that follows the same offline-first philosophy as the rest of the system.
+A point-of-sale app that keeps working with **no internet**. Sales happen
+locally (scan, pay, print receipt) in SQLite; when connectivity returns,
+transactions sync automatically to a central database. Built for remote
+stores and pop-up shops where Shopify/Square/Toast assume you're always
+online.
 
-**Core OS & DBMS concepts explored:**
-- CPU scheduling & thread management — priority scheduler for sync tasks and background jobs
-- Mutex/locking — concurrency control across local and remote writes
-- ACID transactions — reliable local writes even during power loss or crashes
-- Replication & conflict resolution — delta sync with automatic conflict detection
-- Idempotency & retry logic — safe retries with exponential backoff during flaky connectivity
+## OS + DBMS concepts demonstrated
+- **Priority scheduling** — billing runs on a dedicated worker; it never
+  waits on background sync/retry jobs.
+- **Mutexes / locking** — `BEGIN IMMEDIATE` serialises writers; per-module
+  locks guard shared state.
+- **ACID transactions** — each sale is all-or-nothing in WAL-mode SQLite.
+- **Delta sync** — only changed facts (transactions, stock deltas, product
+  updates) move, never full dumps.
+- **Conflict resolution** — stock merges commutatively (no conflicts);
+  product master data uses last-write-wins on `(updated_at, updated_by)`
+  with losers logged for review (ADR-001).
+- **Idempotency + exponential backoff** — retried pushes converge to
+  exactly-once (ADR-004).
 
-**AI Chatbot Assistant (hybrid):**
-- Offline mode — lightweight intent-matching over local SQLite (sales lookups, stock checks, sync status), no model dependency, works with zero connectivity
-- Online mode — calls an LLM API for open-ended questions, natural language summaries, and richer troubleshooting
-- Plugs into the same online/offline state machine used by the sync engine — no separate infrastructure needed
-- General-purpose: handles both data queries ("What sold best today?") and sync troubleshooting ("Why didn't yesterday's transactions sync?")
+## Hybrid chatbot
+Offline: intent matching over local SQLite (sales totals, stock, sync
+status). Online: LLM API (stubbed, see ADR-002) with graceful fallback.
+Shares the sync engine's connectivity state machine.
 
-**Other features:** audit logging, encryption at rest, chaos testing for sync failures, and a health dashboard for monitoring sync status.
-___________________________________________________________________
-TEAM ID_T178
-ANAS ANSARI(TEAM LEAD)
-UJJWAL UNIYAL
-ADRSH YADAV
-____________________________________________________________________
+## Quickstart
+```bash
+python3 simulations/run_all.py
+```
+Runs 7 simulation scenarios (offline sale→sync, price conflict,
+delta merge, flaky-link idempotency, billing priority, offline chatbot,
+clock skew). Results land in `SIMULATION_RESULTS.md`.
+
+## Layout
+```
+offlinepos/        # product code
+  local_db.py      # terminal SQLite store (WAL, ACID)
+  central_db.py    # central DB (simulated; MySQL-shaped interface)
+  net.py           # shared connectivity state machine
+  scheduler.py     # priority scheduler, dedicated billing lane
+  sync_engine.py   # delta sync, LWW, backoff, pull convergence
+  pos.py           # Terminal: scan/checkout/receipt
+  chatbot.py       # hybrid assistant
+  dashboard.py     # health dashboard
+  chaos.py         # failure injection
+simulations/run_all.py
+docs/              # ADRs, limitations, chaos notes
+```
+
+## Docs
+- `docs/ARCHITECTURE_DECISIONS.md` — ADRs 001–005
+- `docs/KNOWN_LIMITATIONS.md`
+- `docs/CHAOS_TESTING.md`
+- `CONTRIBUTING.md` — commit convention
+- `SIMULATION_RESULTS.md` — latest run
