@@ -80,6 +80,22 @@ printer is unreachable — it never crashes a sale.
 Receipts print SUBTOTAL / TAX / TOTAL. Tax rates come from
 `catalog/products.csv` (`tax_rate` column, percent, exclusive of price).
 
+## Connectivity
+
+The header pill is a **manual simulation toggle** by default (deterministic
+offline/online for demos and chaos testing). Press **Auto ○** next to it
+to switch to real connectivity auto-detect: the backend probes actual
+internet reachability every 10 s and drives the pill, sync engine, and
+chatbot from the result. Clicking the pill while in auto mode drops back
+to manual.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `OFFLINEPOS_NET_MODE` | `manual` | `auto` to start with real connectivity detection |
+
+API: `POST /api/net` (manual set), `POST /api/net/mode`
+(`{"mode":"auto"|"manual"}`), `GET /api/net/status`.
+
 ## Chatbot LLM (optional)
 
 The Assistant tab answers from local data when offline. Online, it can

@@ -105,6 +105,9 @@ def build_world():
         t = Terminal(tid, DATA / tid, central)
         t.start()
         terminals[tid] = t
+    if os.environ.get("OFFLINEPOS_NET_MODE", "manual").lower() == "auto":
+        for t in terminals.values():
+            t.set_net_mode("auto")
     seed_if_empty()
 
 
@@ -134,6 +137,10 @@ class CheckoutIn(BaseModel):
 
 class NetIn(BaseModel):
     online: bool
+
+
+class NetModeIn(BaseModel):
+    mode: str = Field(pattern="^(auto|manual)$")
 
 
 class ChatIn(BaseModel):
@@ -262,9 +269,23 @@ def api_sync_now(terminal: str = Query("COUNTER-1"),
 
 @app.post("/api/net")
 def api_net(body: NetIn):
+    """Manual (simulated) connectivity switch — the demo/chaos control."""
     for t in terminals.values():
         t.set_online(body.online)
     return {"online": body.online}
+
+
+@app.post("/api/net/mode")
+def api_net_mode(body: NetModeIn, user: dict = Depends(current_user)):
+    """'manual' (UI toggle drives state) or 'auto' (real probe drives it)."""
+    modes = {t.set_net_mode(body.mode) for t in terminals.values()}
+    return {"mode": body.mode if len(modes) == 1 else "mixed"}
+
+
+@app.get("/api/net/status")
+def api_net_status(user: dict = Depends(current_user)):
+    t = terminals["COUNTER-1"]
+    return {"online": t.net.online, "mode": t.net.mode}
 
 
 @app.get("/api/conflicts")

@@ -4,7 +4,7 @@ Model answers to the questions examiners are most likely to ask, each one
 grounded in a specific architecture decision (ADR) or simulation you can
 re-run live. The full suite runs in ~3 s:
 
-    python3 simulations/run_all.py    # 12/12 PASS -> SIMULATION_RESULTS.md
+    python3 simulations/run_all.py    # 13/13 PASS -> SIMULATION_RESULTS.md
 
 ## DBMS questions
 
@@ -54,6 +54,17 @@ for manual review. We detect (the log), we don't yet prevent — NTP
 enforcement or a vector-clock upgrade is listed as future work.
 
 ## OS questions
+
+**Q: The UI has an offline/online toggle I can flip with no internet — isn't that fake?**
+A: It's a deliberate simulation control, not a bug. `net.py` is a shared
+connectivity state machine: in manual mode (default) the toggle, the
+chaos injector, or tests drive it, so demos of "link drops mid-sale" are
+deterministic. Flipping it with no real internet is safe — sync fails,
+backs off exponentially (S4), and the chatbot falls back to offline
+intents. Pressing **Auto** (or `OFFLINEPOS_NET_MODE=auto`) switches the
+same state machine to a real socket probe every 10 s, so the pill, the
+sync engine, and the chatbot all follow actual connectivity. S13 proves
+the probe and the auto-driven transitions.
 
 **Q: How do you guarantee a customer never waits at the counter because of sync work?**
 A: Not one shared priority queue — a dedicated billing lane (ADR-003). One

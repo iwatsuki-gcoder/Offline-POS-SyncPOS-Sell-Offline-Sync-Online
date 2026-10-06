@@ -13,6 +13,7 @@ Twelve scenarios covering the OS + DBMS concepts in the project:
   S10 barcode catalog (EAN-13 validation, scan lookup, sync carry-over)
   S11 tax calculation (per-product rates, ACID tax math, receipts, migration)
   S12 real LLM chatbot (OpenAI-compatible call, store-context prompt, fallback)
+  S13 connectivity auto-detect (socket probe drives the shared state machine)
 
 Run:  python3 simulations/run_all.py
 Writes: SIMULATION_RESULTS.md
@@ -466,6 +467,62 @@ def s12():
         e.close()
 
 
+# ---------------------------------------------------------------- S13
+@scenario("S13: real connectivity auto-detect")
+def s13():
+    import socket as _socket
+    from offlinepos.net import Connectivity, internet_reachable
+
+    # a local "internet": plain TCP server; kernel completes the handshake
+    srv = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+    srv.setsockopt(_socket.SOL_SOCKET, _socket.SO_REUSEADDR, 1)
+    srv.bind(("127.0.0.1", 0))
+    srv.listen(5)
+    port = srv.getsockname()[1]
+    stop = threading.Event()
+
+    def _serve():
+        while not stop.is_set():
+            try:
+                c, _ = srv.accept()
+                c.close()
+            except OSError:
+                break
+
+    threading.Thread(target=_serve, daemon=True).start()
+    try:
+        # probe: reachable endpoint -> True; dead port -> False; no internet needed
+        assert internet_reachable(endpoints=[("127.0.0.1", port)], timeout=1)
+        assert not internet_reachable(endpoints=[("127.0.0.1", 1)], timeout=0.5)
+        # auto mode drives the shared state machine from probe results
+        net = Connectivity()
+        seen = []
+        net.subscribe(seen.append)
+        net.set_auto_detect(True, interval=0.2,
+                            endpoints=[("127.0.0.1", port)], timeout=1)
+        deadline = time.monotonic() + 5
+        while not net.online and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert net.online and net.mode == "auto", "probe should flip state online"
+        assert "online" in seen
+        # "internet" dies -> state follows back to offline
+        stop.set(); srv.close()
+        deadline = time.monotonic() + 8
+        while net.online and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert not net.online, "dead endpoint should flip state offline"
+        net.set_auto_detect(False)
+        assert net.mode == "manual"
+        return ("probe True vs local server / False vs dead port; auto-detect "
+                "thread drove OFFLINE->ONLINE->OFFLINE on the shared state machine")
+    finally:
+        stop.set()
+        try:
+            srv.close()
+        except OSError:
+            pass
+
+
 def write_report():
     passed = sum(1 for r in RESULTS if r["passed"])
     lines = ["# OfflinePOS Simulation Results",
@@ -492,7 +549,7 @@ def write_report():
 
 
 if __name__ == "__main__":
-    for fn in (s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12):
+    for fn in (s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13):
         fn()
     ok = write_report()
     sys.exit(0 if ok else 1)

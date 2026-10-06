@@ -43,11 +43,18 @@ class Terminal:
         self.scheduler.start()
 
     def close(self):
+        self.net.set_auto_detect(False)
         self.sync.stop_background()
         self.scheduler.stop()
 
     def set_online(self, value: bool):
         self.net.set_online(value)
+
+    def set_net_mode(self, mode: str) -> str:
+        """'manual' (UI toggle drives state) or 'auto' (real probe drives it)."""
+        if mode not in ("manual", "auto"):
+            raise ValueError(f"unknown net mode {mode!r}")
+        return self.net.set_auto_detect(mode == "auto")
 
     # -- catalog --------------------------------------------------------------
     def seed_catalog(self, items: list[tuple]):

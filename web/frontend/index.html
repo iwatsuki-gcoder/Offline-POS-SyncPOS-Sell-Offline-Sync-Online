@@ -14,6 +14,8 @@
   select{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px}
   .pill{margin-left:auto;cursor:pointer;border:none;border-radius:999px;padding:6px 14px;font-weight:700;font-size:13px;color:#fff}
   .pill.online{background:var(--green)}.pill.offline{background:var(--red)}
+  .pill.ghost{background:var(--surface2);border:1px solid var(--border);color:var(--text);margin-left:0}
+  .pill.ghost.on{background:var(--blue);border-color:var(--blue);color:#fff}
   .clock{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
   nav{display:flex;gap:8px;padding:12px 20px 0}
   nav button{background:none;border:none;color:var(--muted);font-size:15px;font-weight:600;padding:10px 16px;cursor:pointer;border-bottom:3px solid transparent}
@@ -82,7 +84,8 @@
 <header>
   <div class="logo">Offline<span>POS</span></div>
   <select id="termSel"><option>COUNTER-1</option><option>COUNTER-2</option></select>
-  <button class="pill offline" id="netPill" title="Toggle connectivity">OFFLINE</button>
+  <button class="pill offline" id="netPill" title="Manual simulation toggle">OFFLINE</button>
+  <button class="pill ghost" id="netAutoBtn" title="Toggle real connectivity auto-detect" style="font-size:11px;padding:6px 10px">Auto ○</button>
   <div class="clock" id="clock">--:--:--</div>
   <div class="userchip" id="userChip" style="display:none"><span id="userName"></span><button id="logoutBtn">Sign out</button></div>
 </header>
@@ -242,13 +245,40 @@ document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()
 }));
 setInterval(()=>{$('clock').textContent=new Date().toLocaleTimeString();},1000);
 $('termSel').addEventListener('change',e=>{terminal=e.target.value;cart={};loadProducts();renderCart();refreshDash();});
-// connectivity
+// connectivity: manual (simulated) toggle + auto (real probe) mode
+let netMode='manual';
 $('netPill').addEventListener('click',async()=>{
   try{
+    if(netMode==='auto'){
+      // manual override: drop back to manual mode, then toggle
+      await api('/api/net/mode',{method:'POST',body:JSON.stringify({mode:'manual'})});
+      netMode='manual';
+    }
     const d=await api('/api/net',{method:'POST',body:JSON.stringify({online:!online})});
     setOnline(d.online); refreshDash();
   }catch(e){if(e.message!=='unauthorized')toast('Network error: '+e.message);}
 });
+$('netAutoBtn').addEventListener('click',async()=>{
+  try{
+    const next=netMode==='auto'?'manual':'auto';
+    const d=await api('/api/net/mode',{method:'POST',body:JSON.stringify({mode:next})});
+    netMode=d.mode; toast(next==='auto'?'Auto-detect on — pill follows real connectivity.':'Manual mode — pill is a simulation toggle.');
+    pollNetStatus();
+  }catch(e){if(e.message!=='unauthorized')toast('Network error: '+e.message);}
+});
+async function pollNetStatus(){
+  // lightweight poll so the pill tracks the auto-detect thread; never logs anyone out
+  try{
+    const r=await fetch('/api/net/status?terminal='+terminal,{headers:authHeaders()});
+    if(!r.ok)return;
+    const s=await r.json();
+    netMode=s.mode; setOnline(s.online);
+    $('netPill').title=netMode==='auto'?'Auto-detected real connectivity (click to override)':'Manual simulation toggle';
+    $('netAutoBtn').classList.toggle('on',netMode==='auto');
+    $('netAutoBtn').textContent=netMode==='auto'?'Auto ●':'Auto ○';
+  }catch(e){/* server may be starting */}
+}
+setInterval(pollNetStatus,10000);
 function setOnline(v){
   online=v; const p=$('netPill');
   p.textContent=v?'ONLINE':'OFFLINE'; p.className='pill '+(v?'online':'offline');
