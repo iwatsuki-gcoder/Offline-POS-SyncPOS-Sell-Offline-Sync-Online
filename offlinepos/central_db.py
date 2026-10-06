@@ -61,6 +61,12 @@ class CentralDB:
         init = sqlite3.connect(self.path, timeout=30.0)
         init.execute("PRAGMA journal_mode=WAL;")
         init.executescript(SCHEMA)
+        try:
+            init.execute("ALTER TABLE products ADD COLUMN barcode TEXT")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+        init.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_products_barcode "
+                     "ON products(barcode)")
         init.commit()
         init.close()
 
@@ -70,14 +76,15 @@ class CentralDB:
         return c
 
     # -- seed (test/setup only) ---------------------------------------------
-    def seed_product(self, product_id, name, price, stock):
+    def seed_product(self, product_id, name, price, stock, barcode=None):
         with self._lock, self._conn() as c:
             c.execute(
-                """INSERT INTO products(product_id,name,price,stock,version,updated_at,updated_by)
-                   VALUES(?,?,?,?,?,?,?)
+                """INSERT INTO products(product_id,name,price,stock,version,updated_at,updated_by,barcode)
+                   VALUES(?,?,?,?,?,?,?,?)
                    ON CONFLICT(product_id) DO UPDATE SET
-                     name=excluded.name, price=excluded.price, stock=excluded.stock""",
-                (product_id, name, price, stock, 1, time.time(), "seed"),
+                     name=excluded.name, price=excluded.price, stock=excluded.stock,
+                     barcode=excluded.barcode""",
+                (product_id, name, price, stock, 1, time.time(), "seed", barcode),
             )
 
     # -- the sync interface ---------------------------------------------------
