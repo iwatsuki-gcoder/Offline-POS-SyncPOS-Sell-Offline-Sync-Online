@@ -1,4 +1,4 @@
-# Contributing to OfflinePOS
+# Contributing to SwiftBill
 
 ## Commit convention (Conventional Commits)
 

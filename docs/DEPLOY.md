@@ -1,6 +1,6 @@
-# Deploying OfflinePOS to a public website
+# Deploying SwiftBill to a public website
 
-This gets you a real public URL like `https://offlinepos-xxxx.onrender.com`
+This gets you a real public URL like `https://swiftbill.onrender.com`
 (free), and optionally your own domain name like `mypos.com`.
 
 ## Option A — free public URL (5 minutes)

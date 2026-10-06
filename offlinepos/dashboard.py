@@ -14,7 +14,7 @@ def render_dashboard(local_db, terminal_id: str, net) -> str:
     state = "ONLINE" if net.online else "OFFLINE"
 
     lines = [
-        f"--- OfflinePOS health dashboard [{terminal_id}] [{state}] ---",
+        f"--- SwiftBill health dashboard [{terminal_id}] [{state}] ---",
         f"last sync      : {last_s}",
         f"pending        : txns={counts['txns']} deltas={counts['deltas']} "
         f"updates={counts['updates']}",

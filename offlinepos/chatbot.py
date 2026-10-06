@@ -65,7 +65,7 @@ class Chatbot:
         last_s = ("never" if not last else
                   datetime.datetime.fromtimestamp(float(last)).strftime("%H:%M:%S"))
         return (
-            f"You are the assistant for OfflinePOS terminal {self.terminal_id}, "
+            f"You are the assistant for SwiftBill terminal {self.terminal_id}, "
             "an offline-first point-of-sale. Answer concisely (2-3 sentences), "
             "as a helpful store assistant.\n"
             f"Live store context: today's sales ${sales:.2f} (local data); "

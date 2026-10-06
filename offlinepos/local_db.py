@@ -1,4 +1,4 @@
-"""Local SQLite store for one OfflinePOS terminal.
+"""Local SQLite store for one SwiftBill terminal.
 
 Design notes (OS + DBMS concepts):
 - WAL journal mode + ``BEGIN IMMEDIATE`` write transactions give crash-safe,

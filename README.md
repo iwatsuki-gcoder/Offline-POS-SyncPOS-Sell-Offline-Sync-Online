@@ -1,4 +1,4 @@
-# OfflinePOS: A Priority-Scheduled, Conflict-Aware Retail Sync System
+# SwiftBill: A Priority-Scheduled, Conflict-Aware Retail Sync System
 
 **Team Kernel Panic** — OS + DBMS course project.
 

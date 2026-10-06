@@ -1,4 +1,4 @@
-# OfflinePOS Web App
+# SwiftBill Web App
 
 Runs on **macOS, Windows, and Linux** — anything with Python 3.10+ and a
 web browser. No build step, no app store, no installers.

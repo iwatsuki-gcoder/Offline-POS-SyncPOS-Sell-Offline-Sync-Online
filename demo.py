@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""OfflinePOS end-to-end demo.
+"""SwiftBill end-to-end demo.
 
 Run:  python3 demo.py        (or press F5 in VS Code)
 

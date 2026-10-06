@@ -1,4 +1,4 @@
-"""OfflinePOS web backend.
+"""SwiftBill web backend.
 
 FastAPI over the existing engine — the browser never touches SQLite
 directly. Runs on macOS / Windows / Linux: any machine with Python 3.10+
@@ -122,7 +122,7 @@ async def lifespan(app: FastAPI):
             pass
 
 
-app = FastAPI(title="OfflinePOS", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="SwiftBill", version="1.0.0", lifespan=lifespan)
 
 
 # ---------------------------------------------------------------- models

@@ -1,8 +1,8 @@
-# Render Blueprint — one-click deploy of OfflinePOS.
+# Render Blueprint — one-click deploy of SwiftBill.
 # Render dashboard → New → Blueprint → select this repo → Apply.
 services:
   - type: web
-    name: offlinepos
+    name: swiftbill
     runtime: python
     plan: free
     buildCommand: pip install -r web/requirements.txt

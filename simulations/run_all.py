@@ -1,4 +1,4 @@
-"""OfflinePOS simulation suite.
+"""SwiftBill simulation suite.
 
 Twelve scenarios covering the OS + DBMS concepts in the project:
   S1 offline sale -> sync (delta sync, ACID local sale)
@@ -444,7 +444,7 @@ def s12():
         body = _FakeLLM.seen[-1]
         assert body["model"] == "test-model", body
         msgs = {m["role"]: m["content"] for m in body["messages"]}
-        assert "OfflinePOS terminal T-E" in msgs["system"], msgs["system"]
+        assert "SwiftBill terminal T-E" in msgs["system"], msgs["system"]
         assert "how are sales?" in msgs["user"]
         # server blows up -> degrade to offline intents, no exception
         _FakeLLM.mode = "error"
@@ -525,7 +525,7 @@ def s13():
 
 def write_report():
     passed = sum(1 for r in RESULTS if r["passed"])
-    lines = ["# OfflinePOS Simulation Results",
+    lines = ["# SwiftBill Simulation Results",
              "",
              f"Ran {len(RESULTS)} scenarios, **{passed} passed**, "
              f"{len(RESULTS) - passed} failed.",

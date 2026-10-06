@@ -1,3 +1,3 @@
-# OfflinePOS needs no third-party packages (Python 3.10+ standard library only).
+# SwiftBill needs no third-party packages (Python 3.10+ standard library only).
 # Uncomment the line below when wiring a real central MySQL (see docs/ARCHITECTURE_DECISIONS.md ADR-005).
 # mysql-connector-python>=8.0
