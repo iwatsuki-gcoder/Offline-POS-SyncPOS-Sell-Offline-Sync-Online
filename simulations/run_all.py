@@ -22,8 +22,11 @@ import traceback
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from offlinepos.auth import AuthStore
+from offlinepos.catalog import catalog_tuples, ean13_is_valid, load_catalog
 from offlinepos.central_db import CentralDB
 from offlinepos.pos import Terminal
+from offlinepos.printer import ReceiptPrinter, format_text_receipt
 from offlinepos.scheduler import SYNC, MAINTENANCE
 
 RESULTS: list[dict] = []
@@ -250,6 +253,86 @@ def s7():
         a.close(); b.close()
 
 
+# ---------------------------------------------------------------- S8
+@scenario("S8: login, roles, sessions")
+def s8():
+    tmp = tempfile.mkdtemp(prefix="offlinepos_auth_")
+    auth = AuthStore(os.path.join(tmp, "auth.db"))
+    auth.seed_defaults()
+    # correct credentials
+    mgr = auth.verify("manager", "admin123")
+    assert mgr and mgr["role"] == "manager", "manager login must work"
+    csh = auth.verify("cashier", "cashier123")
+    assert csh and csh["role"] == "cashier", "cashier login must work"
+    # wrong / unknown rejected
+    assert auth.verify("manager", "wrong") is None, "bad password must fail"
+    assert auth.verify("nobody", "x") is None, "unknown user must fail"
+    # sessions
+    tok = auth.new_session(mgr)
+    assert auth.get_session(tok)["username"] == "manager"
+    assert auth.get_session("bogus") is None
+    auth.end_session(tok)
+    assert auth.get_session(tok) is None, "logout must kill the session"
+    # duplicate user rejected
+    try:
+        auth.create_user("manager", "another1", "manager", "Dup")
+        raise AssertionError("duplicate username must be rejected")
+    except ValueError:
+        pass
+    return ("manager/cashier logins OK, bad password + unknown user rejected, "
+            "session create/validate/logout OK, duplicate username rejected")
+
+
+# ---------------------------------------------------------------- S9
+@scenario("S9: receipt printing (file + printer fallback)")
+def s9():
+    tmp = tempfile.mkdtemp(prefix="offlinepos_print_")
+    sale = {"txn_id": "abc123def456", "total": 45.50,
+            "items": [["W1", 2, 10.0], ["G1", 1, 25.5]]}
+    text = format_text_receipt(sale, "COUNTER-1")
+    assert "TOTAL" in text and "$45.50" in text and "abc123de" in text
+    assert max(len(l) for l in text.splitlines()) <= 42, "42-column format"
+    # file backend
+    pr = ReceiptPrinter(mode="file", receipt_dir=os.path.join(tmp, "rcpts"))
+    r = pr.print_receipt(sale, "COUNTER-1")
+    assert r["ok"] and r["via"] == "file" and os.path.exists(r["path"])
+    # network backend with no printer -> graceful file fallback
+    pr2 = ReceiptPrinter(mode="network", host="127.0.0.1", port=9,
+                         receipt_dir=os.path.join(tmp, "rcpts2"), timeout=0.5)
+    r2 = pr2.print_receipt(sale, "COUNTER-1")
+    assert r2["ok"] and "file" in r2["via"] and os.path.exists(r2["path"]), \
+        "unreachable printer must fall back to file, never raise"
+    return (f"42-col receipt OK (total $45.50); file backend wrote {r['path']}; "
+            f"unreachable network printer fell back to file, no exception")
+
+
+# ---------------------------------------------------------------- S10
+@scenario("S10: product catalog + barcode lookup")
+def s10():
+    catalog = load_catalog()
+    assert len(catalog) == 6, f"expected 6 products, got {len(catalog)}"
+    for c in catalog:
+        assert ean13_is_valid(c["barcode"]), f"bad EAN-13: {c['barcode']}"
+    assert len({c["barcode"] for c in catalog}) == 6, "barcodes must be unique"
+
+    tmp, central = make_env()
+    t = make_terminal("T-SCAN", tmp, central)
+    try:
+        t.seed_catalog(catalog_tuples())
+        widget = t.db.get_product_by_barcode("8901011000015")
+        assert widget and widget["name"] == "Widget", "scan must find Widget"
+        assert t.db.get_product_by_barcode("0000000000000") is None, \
+            "unknown barcode must return None"
+        # barcode survives a sync round-trip to central
+        central.seed_product("W1", "Widget", 10.0, 20, barcode="8901011000015")
+        assert central.get_product("W1")["barcode"] == "8901011000015"
+        return ("6 products loaded from catalog/products.csv, all EAN-13 valid "
+                "and unique; scan of 8901011000015 -> Widget; unknown -> None; "
+                "central carries the barcode too")
+    finally:
+        t.close()
+
+
 def write_report():
     passed = sum(1 for r in RESULTS if r["passed"])
     lines = ["# OfflinePOS Simulation Results",
@@ -276,7 +359,7 @@ def write_report():
 
 
 if __name__ == "__main__":
-    for fn in (s1, s2, s3, s4, s5, s6, s7):
+    for fn in (s1, s2, s3, s4, s5, s6, s7, s8, s9, s10):
         fn()
     ok = write_report()
     sys.exit(0 if ok else 1)

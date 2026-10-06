@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Runtime data (local SQLite DBs, receipts, sessions)
+data/
+
+# OS / editor
+.DS_Store
+Thumbs.db

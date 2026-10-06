@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OfflinePOS — Frontend Wireframe</title>
+<style>
+  :root{
+    --bg:#121417; --surface:#1c1f24; --surface2:#242830; --text:#f2f4f8;
+    --muted:#9aa3b2; --green:#22c55e; --red:#ef4444; --amber:#f59e0b; --blue:#3b82f6;
+    --border:#2e333d; --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--bg); color:var(--text); font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif; min-height:100vh;}
+  header{display:flex; align-items:center; gap:12px; padding:12px 20px; background:var(--surface); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:10;}
+  .logo{font-weight:800; font-size:18px;}
+  .logo span{color:var(--blue);}
+  .term{background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:4px 10px; font-size:13px; color:var(--muted);}
+  .pill{margin-left:auto; cursor:pointer; border:none; border-radius:999px; padding:6px 14px; font-weight:700; font-size:13px; color:#fff;}
+  .pill.online{background:var(--green);} .pill.offline{background:var(--red);}
+  .clock{font-size:13px; color:var(--muted); font-variant-numeric:tabular-nums;}
+  nav{display:flex; gap:8px; padding:12px 20px 0;}
+  nav button{background:transparent; border:none; color:var(--muted); font-size:15px; font-weight:600; padding:10px 16px; cursor:pointer; border-bottom:3px solid transparent;}
+  nav button.active{color:var(--text); border-bottom-color:var(--blue);}
+  main{padding:16px 20px 40px; max-width:1200px; margin:0 auto;}
+  .screen{display:none;} .screen.active{display:block;}
+  .grid2{display:grid; grid-template-columns:1fr 340px; gap:16px;}
+  @media(max-width:900px){.grid2{grid-template-columns:1fr;}}
+  .card{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:16px;}
+  .card h3{font-size:14px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:12px;}
+  .search{width:100%; padding:10px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface2); color:var(--text); font-size:14px; margin-bottom:12px;}
+  .products{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px;}
+  .prod{background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:12px; cursor:pointer; transition:transform .08s;}
+  .prod:hover{transform:translateY(-2px); border-color:var(--blue);}
+  .prod.out{opacity:.45; cursor:not-allowed;}
+  .prod .nm{font-weight:700; font-size:14px;}
+  .prod .pr{color:var(--green); font-weight:700; font-variant-numeric:tabular-nums; margin-top:4px;}
+  .prod .st{font-size:12px; color:var(--muted); margin-top:2px;}
+  .cart-line{display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid var(--border); font-size:14px;}
+  .cart-line .n{flex:1;}
+  .step{background:var(--surface2); border:1px solid var(--border); color:var(--text); width:28px; height:28px; border-radius:8px; cursor:pointer; font-size:16px;}
+  .qty{min-width:24px; text-align:center; font-variant-numeric:tabular-nums;}
+  .total{display:flex; justify-content:space-between; font-size:20px; font-weight:800; margin:14px 0; font-variant-numeric:tabular-nums;}
+  .btn{width:100%; padding:14px; border:none; border-radius:10px; font-size:16px; font-weight:800; cursor:pointer; color:#fff; background:var(--blue);}
+  .btn.green{background:var(--green);} .btn:disabled{opacity:.5; cursor:not-allowed;}
+  .modal{position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; z-index:50;}
+  .modal.show{display:flex;}
+  .receipt{background:#fff; color:#111; border-radius:10px; padding:24px; width:320px; font-family:ui-monospace,monospace; font-size:13px;}
+  .receipt h4{text-align:center; margin-bottom:8px;}
+  .receipt .row{display:flex; justify-content:space-between;}
+  .receipt hr{border:none; border-top:1px dashed #999; margin:8px 0;}
+  .stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:16px;}
+  .stat{background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px;}
+  .stat .v{font-size:26px; font-weight:800; font-variant-numeric:tabular-nums;}
+  .stat .l{font-size:12px; color:var(--muted); margin-top:4px;}
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th{text-align:left; color:var(--muted); font-weight:600; padding:8px; border-bottom:1px solid var(--border);}
+  td{padding:8px; border-bottom:1px solid var(--border); font-variant-numeric:tabular-nums;}
+  .badge{display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700;}
+  .b-amber{background:rgba(245,158,11,.15); color:var(--amber);}
+  .b-green{background:rgba(34,197,94,.15); color:var(--green);}
+  .chat{display:flex; flex-direction:column; gap:10px; max-height:420px; overflow-y:auto; margin-bottom:12px;}
+  .msg{max-width:80%; padding:10px 14px; border-radius:14px; font-size:14px; line-height:1.45;}
+  .msg.bot{background:var(--surface2); align-self:flex-start; border-bottom-left-radius:4px;}
+  .msg.user{background:var(--blue); align-self:flex-end; border-bottom-right-radius:4px; color:#fff;}
+  .chips{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;}
+  .chip{background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:999px; padding:8px 14px; font-size:13px; cursor:pointer;}
+  .chip:hover{border-color:var(--blue);}
+  .chatrow{display:flex; gap:8px;}
+  .chatrow input{flex:1; padding:12px; border-radius:10px; border:1px solid var(--border); background:var(--surface2); color:var(--text); font-size:14px;}
+  .note{font-size:12px; color:var(--muted); margin-top:10px;}
+  .modebadge{font-size:12px; font-weight:700; padding:4px 10px; border-radius:999px; background:rgba(245,158,11,.15); color:var(--amber);}
+  .modebadge.on{background:rgba(34,197,94,.15); color:var(--green);}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Offline<span>POS</span></div>
+  <div class="term">COUNTER-1</div>
+  <button class="pill offline" id="netPill" title="Click to toggle connectivity">OFFLINE</button>
+  <div class="clock" id="clock">--:--:--</div>
+</header>
+<nav>
+  <button class="active" data-tab="billing">Billing</button>
+  <button data-tab="dash">Sync Dashboard</button>
+  <button data-tab="chat">Assistant <span class="modebadge" id="modeBadge">Offline</span></button>
+</nav>
+<main>
+  <!-- BILLING -->
+  <section class="screen active" id="tab-billing">
+    <div class="grid2">
+      <div class="card">
+        <h3>Products</h3>
+        <input class="search" id="search" placeholder="Search products…">
+        <div class="products" id="prodGrid"></div>
+      </div>
+      <div class="card">
+        <h3>Cart</h3>
+        <div id="cartLines"><p style="color:var(--muted);font-size:14px">Tap a product to add it.</p></div>
+        <div class="total"><span>Total</span><span id="cartTotal">$0.00</span></div>
+        <button class="btn" id="chargeBtn" disabled>Charge</button>
+        <p class="note">Charge works offline — the sale is stored locally and syncs later.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- DASHBOARD -->
+  <section class="screen" id="tab-dash">
+    <div class="stats">
+      <div class="stat"><div class="v" id="stTx">2</div><div class="l">Pending transactions</div></div>
+      <div class="stat"><div class="v" id="stDe">3</div><div class="l">Pending stock deltas</div></div>
+      <div class="stat"><div class="v" id="stUp">1</div><div class="l">Pending price updates</div></div>
+      <div class="stat"><div class="v" style="font-size:18px" id="stLa">never</div><div class="l">Last sync</div></div>
+    </div>
+    <div class="grid2" style="grid-template-columns:1fr 1fr">
+      <div class="card">
+        <h3>Sync control</h3>
+        <button class="btn green" id="syncBtn">Sync now</button>
+        <p class="note" id="syncNote">Auto-sync runs in the background whenever online.</p>
+      </div>
+      <div class="card">
+        <h3>Conflicts needing review <span class="badge b-amber">1</span></h3>
+        <table>
+          <tr><th>Product</th><th>Local</th><th>Remote</th><th>Resolution</th></tr>
+          <tr><td>Gadget</td><td>$27.00</td><td>$29.00</td><td><span class="badge b-amber">last-write-wins</span></td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h3>Products</h3>
+      <table id="dashTable">
+        <tr><th>ID</th><th>Name</th><th>Price</th><th>Stock</th><th>Updated by</th></tr>
+      </table>
+    </div>
+  </section>
+
+  <!-- CHAT -->
+  <section class="screen" id="tab-chat">
+    <div class="card">
+      <h3>Assistant <span class="modebadge" id="modeBadge2">Offline — local intents</span></h3>
+      <div class="chat" id="chatBox">
+        <div class="msg bot">Hi! I'm running <b>offline</b> — I can still answer from local data. Try a suggestion below.</div>
+      </div>
+      <div class="chips">
+        <button class="chip" data-q="total sales today">Sales today</button>
+        <button class="chip" data-q="stock of Widget">Stock of Widget</button>
+        <button class="chip" data-q="sync status">Sync status</button>
+        <button class="chip" data-q="help">Help</button>
+      </div>
+      <div class="chatrow">
+        <input id="chatIn" placeholder="Ask about sales, stock, or sync…">
+        <button class="btn" id="sendBtn" style="width:auto;padding:12px 20px">Send</button>
+      </div>
+      <p class="note">Online mode would call the LLM API (see ADR-002); offline it degrades to local intents — never an error.</p>
+    </div>
+  </section>
+</main>
+
+<div class="modal" id="receiptModal">
+  <div class="receipt">
+    <h4>OfflinePOS — COUNTER-1</h4>
+    <div id="rcptLines"></div><hr>
+    <div class="row"><b>TOTAL</b><b id="rcptTotal"></b></div>
+    <div class="row" style="margin-top:6px"><span>txn</span><span id="rcptTxn"></span></div>
+    <p style="text-align:center;margin-top:10px">Stored locally — will sync when online.</p>
+    <button class="btn" style="margin-top:12px" onclick="document.getElementById('receiptModal').classList.remove('show')">Done</button>
+  </div>
+</div>
+
+<script>
+const PRODUCTS=[
+  {id:'W1',name:'Widget',price:10.00,stock:18},
+  {id:'G1',name:'Gadget',price:25.50,stock:14},
+  {id:'S1',name:'Sprocket',price:5.00,stock:95},
+  {id:'B1',name:'Bolt',price:2.00,stock:30},
+  {id:'N1',name:'Nut',price:1.00,stock:0},
+  {id:'Z1',name:'Gizmo',price:12.75,stock:40},
+];
+let cart={}, online=false;
+// tabs
+document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('tab-'+b.dataset.tab).classList.add('active');
+}));
+// clock
+setInterval(()=>{document.getElementById('clock').textContent=new Date().toLocaleTimeString();},1000);
+// connectivity toggle
+const pill=document.getElementById('netPill');
+pill.addEventListener('click',()=>{
+  online=!online;
+  pill.textContent=online?'ONLINE':'OFFLINE';
+  pill.className='pill '+(online?'online':'offline');
+  for(const id of ['modeBadge','modeBadge2']){
+    const el=document.getElementById(id);
+    el.textContent=online?'Online':'Offline';
+    el.classList.toggle('on',online);
+    if(id==='modeBadge2') el.textContent=online?'Online — LLM':'Offline — local intents';
+  }
+  if(online) botSay('Back online. Sync engine draining the queue… (wireframe: pending counters would fall to zero)');
+});
+// products
+function renderProds(filter=''){
+  const g=document.getElementById('prodGrid'); g.innerHTML='';
+  PRODUCTS.filter(p=>(p.name+p.id).toLowerCase().includes(filter.toLowerCase())).forEach(p=>{
+    const d=document.createElement('div');
+    d.className='prod'+(p.stock===0?' out':'');
+    d.innerHTML=`<div class="nm">${p.name}</div><div class="pr">$${p.price.toFixed(2)}</div><div class="st">${p.stock} in stock</div>`;
+    if(p.stock>0) d.onclick=()=>{cart[p.id]=(cart[p.id]||0)+1; renderCart();};
+    g.appendChild(d);
+  });
+}
+document.getElementById('search').addEventListener('input',e=>renderProds(e.target.value));
+function renderCart(){
+  const box=document.getElementById('cartLines'); box.innerHTML='';
+  let total=0, n=0;
+  for(const [id,q] of Object.entries(cart)){
+    const p=PRODUCTS.find(x=>x.id===id); total+=p.price*q; n++;
+    const row=document.createElement('div'); row.className='cart-line';
+    row.innerHTML=`<span class="n">${p.name}</span>
+      <button class="step" data-a="-">−</button><span class="qty">${q}</span><button class="step" data-a="+">+</button>
+      <span>$${(p.price*q).toFixed(2)}</span>`;
+    row.querySelector('[data-a="-"]').onclick=()=>{cart[id]--; if(cart[id]<=0)delete cart[id]; renderCart();};
+    row.querySelector('[data-a="+"]').onclick=()=>{cart[id]++; renderCart();};
+    box.appendChild(row);
+  }
+  if(!n) box.innerHTML='<p style="color:var(--muted);font-size:14px">Tap a product to add it.</p>';
+  document.getElementById('cartTotal').textContent='$'+total.toFixed(2);
+  document.getElementById('chargeBtn').disabled=!n;
+}
+document.getElementById('chargeBtn').addEventListener('click',()=>{
+  let total=0, html='';
+  for(const [id,q] of Object.entries(cart)){
+    const p=PRODUCTS.find(x=>x.id===id); total+=p.price*q; p.stock-=q;
+    html+=`<div class="row"><span>${p.name} x${q}</span><span>$${(p.price*q).toFixed(2)}</span></div>`;
+  }
+  document.getElementById('rcptLines').innerHTML=html;
+  document.getElementById('rcptTotal').textContent='$'+total.toFixed(2);
+  document.getElementById('rcptTxn').textContent=Math.random().toString(16).slice(2,10);
+  document.getElementById('receiptModal').classList.add('show');
+  cart={}; renderCart(); renderProds(document.getElementById('search').value);
+  const tx=document.getElementById('stTx'); tx.textContent=+tx.textContent+1;
+});
+// dashboard
+function renderDashTable(){
+  const t=document.getElementById('dashTable');
+  PRODUCTS.forEach(p=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${p.id}</td><td>${p.name}</td><td>$${p.price.toFixed(2)}</td><td>${p.stock}</td><td>COUNTER-1</td>`;
+    t.appendChild(tr);
+  });
+}
+document.getElementById('syncBtn').addEventListener('click',()=>{
+  if(!online){document.getElementById('syncNote').textContent='Still offline — sync is deferred (exactly what the engine does).';return;}
+  ['stTx','stDe','stUp'].forEach(id=>document.getElementById(id).textContent='0');
+  document.getElementById('stLa').textContent=new Date().toLocaleTimeString();
+  document.getElementById('syncNote').textContent='Sync complete — 0 pending. Idempotency keys made the retry safe.';
+});
+// chat
+const ANSWERS={
+  'total sales today':"Today's sales on COUNTER-1: <b>$45.50</b> (offline data).",
+  'stock of Widget':"<b>Widget (W1):</b> 18 in stock @ $10.00.",
+  'sync status':"Sync status [<b>OFFLINE</b>]: 3 pending (txns=1, deltas=2, updates=0), last sync: never.",
+  'help':"I work offline. Try: <i>total sales today</i>, <i>stock of …</i>, <i>sync status</i>.",
+};
+function botSay(html){const c=document.getElementById('chatBox');const d=document.createElement('div');d.className='msg bot';d.innerHTML=html;c.appendChild(d);c.scrollTop=c.scrollHeight;}
+function userSay(t){const c=document.getElementById('chatBox');const d=document.createElement('div');d.className='msg user';d.textContent=t;c.appendChild(d);c.scrollTop=c.scrollHeight;}
+function ask(q){
+  userSay(q);
+  setTimeout(()=>{
+    const key=Object.keys(ANSWERS).find(k=>q.toLowerCase().includes(k.split(' ')[0])&& (k==='help'?q.toLowerCase().includes('help'):true));
+    let a=ANSWERS[q.toLowerCase()]||ANSWERS[key];
+    if(!a) a="I'm offline and didn't understand that. I can answer: sales totals, stock checks, sync status.";
+    if(online) a="<i>[online LLM would answer here — stubbed per ADR-002]</i><br>"+a;
+    botSay(a);
+  },400);
+}
+document.querySelectorAll('.chip').forEach(ch=>ch.addEventListener('click',()=>ask(ch.dataset.q)));
+document.getElementById('sendBtn').addEventListener('click',()=>{
+  const i=document.getElementById('chatIn'); if(i.value.trim()){ask(i.value.trim()); i.value='';}
+});
+document.getElementById('chatIn').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('sendBtn').click();});
+renderProds(); renderCart(); renderDashTable();
+</script>
+</body>
+</html>
