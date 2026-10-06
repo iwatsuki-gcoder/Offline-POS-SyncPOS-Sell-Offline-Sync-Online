@@ -115,6 +115,8 @@
       </div>
       <div class="card"><h3>Cart</h3>
         <div id="cartLines"></div>
+        <div class="total" style="font-weight:normal;font-size:14px"><span>Subtotal</span><span id="cartSubtotal">$0.00</span></div>
+        <div class="total" style="font-weight:normal;font-size:14px"><span>Est. tax</span><span id="cartTax">$0.00</span></div>
         <div class="total"><span>Total</span><span id="cartTotal">$0.00</span></div>
         <button class="btn" id="chargeBtn" disabled>Charge</button>
         <p class="note">Charge works offline — the sale is stored locally and syncs later.</p>
@@ -141,7 +143,7 @@
       </div>
     </div>
     <div class="card" style="margin-top:16px"><h3>Products</h3>
-      <table><thead><tr><th>ID</th><th>Name</th><th>Price</th><th>Stock</th><th>Updated by</th></tr></thead>
+      <table><thead><tr><th>ID</th><th>Name</th><th>Price</th><th>Tax %</th><th>Stock</th><th>Updated by</th></tr></thead>
       <tbody id="dashBody"></tbody></table>
     </div>
   </section>
@@ -158,13 +160,15 @@
         <input id="chatIn" placeholder="Ask about sales, stock, or sync…">
         <button class="btn" id="sendBtn" style="width:auto;padding:12px 20px">Send</button>
       </div>
-      <p class="note">Online mode would call the LLM API (ADR-002); offline it uses local intents — never an error.</p>
+      <p class="note">Online with an API key set → real LLM answers grounded in live store data (ADR-002); otherwise local intents — never an error.</p>
     </div>
   </section>
 </main>
 <div class="modal" id="receiptModal"><div class="receipt">
   <h4>OfflinePOS</h4><div id="rcptTerm" style="text-align:center;color:#555"></div>
   <div id="rcptLines"></div><hr>
+  <div class="row"><span>Subtotal</span><span id="rcptSubtotal"></span></div>
+  <div class="row"><span>Tax</span><span id="rcptTax"></span></div>
   <div class="row"><b>TOTAL</b><b id="rcptTotal"></b></div>
   <div class="row" style="margin-top:6px"><span>txn</span><span id="rcptTxn"></span></div>
   <p style="text-align:center;margin-top:10px">Stored locally — will sync when online.</p>
@@ -334,10 +338,11 @@ $('scanBtn').addEventListener('click',async()=>{
 });
 $('scanClose').addEventListener('click',stopScan);
 function renderCart(){
-  const box=$('cartLines'); box.innerHTML=''; let total=0,n=0;
+  const box=$('cartLines'); box.innerHTML=''; let sub=0,tax=0,n=0;
   for(const [id,q] of Object.entries(cart)){
     const p=products.find(x=>x.product_id===id); if(!p) continue;
-    total+=p.price*q; n++;
+    const rate=p.tax_rate||0;
+    sub+=p.price*q; tax+=Math.round(p.price*q*rate)/100; n++;
     const row=document.createElement('div'); row.className='cart-line';
     row.innerHTML=`<span class="n">${p.name}</span><button class="step" data-a="-">−</button><span class="qty">${q}</span><button class="step" data-a="+">+</button><span>$${(p.price*q).toFixed(2)}</span>`;
     row.querySelector('[data-a="-"]').onclick=()=>{cart[id]--;if(cart[id]<=0)delete cart[id];renderCart();};
@@ -345,7 +350,9 @@ function renderCart(){
     box.appendChild(row);
   }
   if(!n) box.innerHTML='<p style="color:var(--muted);font-size:14px">Tap a product to add it.</p>';
-  $('cartTotal').textContent='$'+total.toFixed(2);
+  $('cartSubtotal').textContent='$'+sub.toFixed(2);
+  $('cartTax').textContent='$'+tax.toFixed(2);
+  $('cartTotal').textContent='$'+(sub+tax).toFixed(2);
   $('chargeBtn').disabled=!n;
 }
 $('chargeBtn').addEventListener('click',async()=>{
@@ -355,6 +362,8 @@ $('chargeBtn').addEventListener('click',async()=>{
     lastSale=r.sale; $('printNote').textContent='';
     $('rcptTerm').textContent=terminal;
     $('rcptLines').innerHTML=r.sale.items.map(([pid,q,pr])=>`<div class="row"><span>${pid} x${q}</span><span>$${(q*pr).toFixed(2)}</span></div>`).join('');
+    $('rcptSubtotal').textContent='$'+(r.sale.subtotal??r.sale.total).toFixed(2);
+    $('rcptTax').textContent='$'+(r.sale.tax_total??0).toFixed(2);
     $('rcptTotal').textContent='$'+r.sale.total.toFixed(2);
     $('rcptTxn').textContent=r.sale.txn_id.slice(0,8);
     $('receiptModal').classList.add('show');
@@ -376,7 +385,7 @@ async function refreshDash(){
       return `<tr><td>${x.entity_id}</td><td>$${wp}</td><td>$${lp}</td><td><span class="badge b-amber">${x.resolution}</span></td></tr>`;
     }).join(''):'<tr><td colspan="4" style="color:var(--muted)">No conflicts.</td></tr>';
     const h=await api('/api/health');
-    $('dashBody').innerHTML=h.products.map(p=>`<tr><td>${p.product_id}</td><td>${p.name}</td><td>$${p.price.toFixed(2)}</td><td>${p.stock}</td><td>${p.updated_by}</td></tr>`).join('');
+    $('dashBody').innerHTML=h.products.map(p=>`<tr><td>${p.product_id}</td><td>${p.name}</td><td>$${p.price.toFixed(2)}</td><td>${(p.tax_rate||0)}%</td><td>${p.stock}</td><td>${p.updated_by}</td></tr>`).join('');
   }catch(e){/* server may be starting */}
 }
 function setOnlinePillOnly(v){

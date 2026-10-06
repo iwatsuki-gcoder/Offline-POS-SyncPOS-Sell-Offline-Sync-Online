@@ -35,8 +35,9 @@ from offlinepos.printer import ReceiptPrinter
 ROOT = Path(__file__).resolve().parents[2]
 DATA = Path(os.environ.get("OFFLINEPOS_DATA", ROOT / "data"))
 TERMINAL_IDS = ("COUNTER-1", "COUNTER-2")
-# Source of truth: catalog/products.csv (id, EAN-13 barcode, name, price, stock)
-CATALOG = [(c["product_id"], c["name"], c["price"], c["stock"], c["barcode"])
+# Source of truth: catalog/products.csv (id, EAN-13 barcode, name, price, stock, tax_rate)
+CATALOG = [(c["product_id"], c["name"], c["price"], c["stock"], c["barcode"],
+            c["tax_rate"])
            for c in load_catalog()]
 
 central: CentralDB | None = None
@@ -76,8 +77,9 @@ def seed_if_empty():
         if not t.db.list_products():
             t.seed_catalog(list(CATALOG))
     if central.get_product(CATALOG[0][0]) is None:
-        for pid, name, price, stock, barcode in CATALOG:
-            central.seed_product(pid, name, price, stock, barcode=barcode)
+        for pid, name, price, stock, barcode, tax_rate in CATALOG:
+            central.seed_product(pid, name, price, stock, barcode=barcode,
+                                 tax_rate=tax_rate)
 
 
 def build_world():

@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS products(
     name        TEXT NOT NULL,
     price       REAL NOT NULL,
     stock       INTEGER NOT NULL DEFAULT 0,
+    tax_rate    REAL NOT NULL DEFAULT 0, -- percent; catalog-seeded master data
     version     INTEGER NOT NULL DEFAULT 1,
     updated_at  REAL NOT NULL,
     updated_by  TEXT NOT NULL
@@ -65,6 +66,10 @@ class CentralDB:
             init.execute("ALTER TABLE products ADD COLUMN barcode TEXT")
         except sqlite3.OperationalError:
             pass  # column already exists
+        try:
+            init.execute("ALTER TABLE products ADD COLUMN tax_rate REAL NOT NULL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass  # column already exists
         init.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_products_barcode "
                      "ON products(barcode)")
         init.commit()
@@ -76,15 +81,17 @@ class CentralDB:
         return c
 
     # -- seed (test/setup only) ---------------------------------------------
-    def seed_product(self, product_id, name, price, stock, barcode=None):
+    def seed_product(self, product_id, name, price, stock, barcode=None,
+                     tax_rate=0.0):
         with self._lock, self._conn() as c:
             c.execute(
-                """INSERT INTO products(product_id,name,price,stock,version,updated_at,updated_by,barcode)
-                   VALUES(?,?,?,?,?,?,?,?)
+                """INSERT INTO products(product_id,name,price,stock,tax_rate,version,updated_at,updated_by,barcode)
+                   VALUES(?,?,?,?,?,?,?,?,?)
                    ON CONFLICT(product_id) DO UPDATE SET
                      name=excluded.name, price=excluded.price, stock=excluded.stock,
-                     barcode=excluded.barcode""",
-                (product_id, name, price, stock, 1, time.time(), "seed", barcode),
+                     tax_rate=excluded.tax_rate, barcode=excluded.barcode""",
+                (product_id, name, price, stock, float(tax_rate), 1, time.time(),
+                 "seed", barcode),
             )
 
     # -- the sync interface ---------------------------------------------------

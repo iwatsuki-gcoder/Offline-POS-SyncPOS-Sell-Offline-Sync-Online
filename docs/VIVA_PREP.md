@@ -4,7 +4,7 @@ Model answers to the questions examiners are most likely to ask, each one
 grounded in a specific architecture decision (ADR) or simulation you can
 re-run live. The full suite runs in ~3 s:
 
-    python3 simulations/run_all.py    # 10/10 PASS -> SIMULATION_RESULTS.md
+    python3 simulations/run_all.py    # 12/12 PASS -> SIMULATION_RESULTS.md
 
 ## DBMS questions
 
@@ -89,9 +89,41 @@ OFFLINE → ONLINE transitions.
 
 **Q: What if the LLM API fails mid-session while online?**
 A: Graceful degradation: the bot falls back to offline intents and says
-so, instead of erroring (ADR-002). Provider choice is deliberately
-deferred until latency/cost testing (Known Limitations #6); the online
-code path exists and reads `OFFLINEPOS_LLM_KEY`.
+so, instead of erroring (ADR-002). The online path is real now — a
+stdlib-only OpenAI-compatible `/chat/completions` client
+(`offlinepos/llm.py`, no SDK dependency), configurable for OpenAI, any
+OpenAI-compatible provider, or a local Ollama via
+`OFFLINEPOS_LLM_BASE_URL`. Every failure mode (no key, timeout, HTTP
+error, malformed JSON) raises `LLMError`, which the chatbot catches and
+degrades on. Without `OFFLINEPOS_LLM_API_KEY` set, the bot simply stays on
+offline intents (Known Limitations #6). S12 proves the live call and the
+fallback against a fake server.
+
+**Q: Doesn't an LLM make up numbers? How do you keep its answers factual?**
+A: The system prompt injects live store context — today's sales, product
+count, low-stock list, pending sync counts, last sync time — so answers
+are grounded in the terminal's own data, and the prompt tells it to say
+what it doesn't know rather than invent numbers.
+
+## Billing / tax questions
+
+**Q: How does tax calculation work?**
+A: Per-product `tax_rate` (percent) on the catalog, applied exclusive of
+price: `line_tax = round(price × qty × rate / 100, 2)` per line, computed
+*inside* the same `BEGIN IMMEDIATE` ACID transaction as the sale
+(ADR-006) — the tax breakdown can never disagree with the recorded sale.
+`transactions` stores `subtotal`, `tax_total`, and the grand `total`;
+receipts (text, ESC/POS thermal, web modal) print all three. S11 proves
+the math (2× Widget @18% + 1× Bolt @5% + tax-free = $25.00 + $3.70 =
+$28.70), persistence, printing, sync carry-over, and clean migration of
+pre-tax databases (default 0%).
+
+**Q: Why isn't the tax rate synced like prices are?**
+A: Honest scoping: `tax_rate` is catalog-seeded master data
+(`catalog/products.csv`), not yet part of the LWW `product_updates` sync —
+changing a rate means re-seeding (Known Limitations #9). Pull convergence
+deliberately leaves the local rate untouched, so a sync can never clobber
+it silently.
 
 ## Architecture honesty questions
 
@@ -107,9 +139,10 @@ deferred to Phase 2.
 A: Lead with Known Limitations — examiners reward this: no multi-region
 replication, no payment-gateway integration, no merge UI for master-data
 conflicts, terminals that stay offline indefinitely diverge until they
-sync (no peer-to-peer gossip), security is baseline (audit logging only,
-no encryption-at-rest yet), and one terminal serializes checkouts
-through the billing worker.
+sync (no peer-to-peer gossip), security is baseline (login with
+cashier/manager roles and audit logging, no encryption-at-rest yet),
+tax rates are catalog-seeded rather than synced, and one terminal
+serializes checkouts through the billing worker.
 
 ## Suggested 2-minute live demo
 

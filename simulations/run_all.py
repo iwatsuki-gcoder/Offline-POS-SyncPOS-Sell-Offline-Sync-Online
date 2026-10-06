@@ -1,6 +1,6 @@
 """OfflinePOS simulation suite.
 
-Seven scenarios covering the OS + DBMS concepts in the project:
+Twelve scenarios covering the OS + DBMS concepts in the project:
   S1 offline sale -> sync (delta sync, ACID local sale)
   S2 price conflict -> last-write-wins + conflict log
   S3 concurrent offline sales -> commutative stock-delta merge
@@ -8,15 +8,24 @@ Seven scenarios covering the OS + DBMS concepts in the project:
   S5 priority scheduling -> billing never waits on background work
   S6 hybrid chatbot -> offline intent answering
   S7 clock skew -> skewed timestamp wins LWW, conflict logged for review
+  S8 login, roles, sessions
+  S9 receipt printing (file + ESC/POS, printer-outage fallback)
+  S10 barcode catalog (EAN-13 validation, scan lookup, sync carry-over)
+  S11 tax calculation (per-product rates, ACID tax math, receipts, migration)
+  S12 real LLM chatbot (OpenAI-compatible call, store-context prompt, fallback)
 
 Run:  python3 simulations/run_all.py
 Writes: SIMULATION_RESULTS.md
 """
 from __future__ import annotations
 
+import http.server
+import json
 import os
+import sqlite3
 import sys
 import tempfile
+import threading
 import time
 import traceback
 
@@ -25,6 +34,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from offlinepos.auth import AuthStore
 from offlinepos.catalog import catalog_tuples, ean13_is_valid, load_catalog
 from offlinepos.central_db import CentralDB
+from offlinepos.local_db import LocalDB
 from offlinepos.pos import Terminal
 from offlinepos.printer import ReceiptPrinter, format_text_receipt
 from offlinepos.scheduler import SYNC, MAINTENANCE
@@ -333,6 +343,129 @@ def s10():
         t.close()
 
 
+# ---------------------------------------------------------------- S11
+@scenario("S11: tax calculation on checkout")
+def s11():
+    tmp, central = make_env()
+    a = make_terminal("T-A", tmp, central)
+    try:
+        a.seed_catalog([("W1", "Widget", 10.0, 20, None, 18.0),
+                        ("B1", "Bolt", 2.0, 30, None, 5.0),
+                        ("F1", "Freebie", 3.0, 10)])  # no rate -> 0%
+        a.set_online(False)
+        a.scan("W1", 2); a.scan("B1", 1); a.scan("F1", 1)
+        rcpt = a.checkout()
+        sale = rcpt["sale"]
+        # subtotal 20+2+3=25; tax 3.60+0.10+0=3.70; total 28.70
+        assert sale["subtotal"] == 25.0, sale
+        assert sale["tax_total"] == 3.7, sale
+        assert sale["total"] == 28.7, sale
+        assert "SUBTOTAL: $25.00" in rcpt["text"], rcpt["text"]
+        assert "TAX: $3.70" in rcpt["text"], rcpt["text"]
+        assert "TOTAL: $28.70" in rcpt["text"], rcpt["text"]
+        # persisted breakdown columns
+        row = a.db._conn().execute(
+            "SELECT subtotal, tax_total, total FROM transactions").fetchone()
+        assert (row["subtotal"], row["tax_total"], row["total"]) == (25.0, 3.7, 28.7)
+        # printer path shows the tax lines too
+        text = format_text_receipt(sale, "T-A")
+        assert "TAX" in text and "$28.70" in text, text
+        # sync round-trip keeps the taxed total intact
+        central.seed_product("W1", "Widget", 10.0, 20, tax_rate=18.0)
+        central.seed_product("B1", "Bolt", 2.0, 30, tax_rate=5.0)
+        central.seed_product("F1", "Freebie", 3.0, 10)
+        a.set_online(True)
+        rep = a.sync_now()
+        assert rep.ok, rep.error
+        ctot = central._conn().execute(
+            "SELECT total FROM transactions").fetchone()["total"]
+        assert ctot == 28.7, ctot
+        # migration: a pre-tax database gains the new columns on open
+        leg = os.path.join(tmp, "legacy.db")
+        c0 = sqlite3.connect(leg)
+        c0.execute("CREATE TABLE products(product_id TEXT PRIMARY KEY, "
+                   "name TEXT NOT NULL, price REAL NOT NULL, "
+                   "stock INTEGER NOT NULL DEFAULT 0, version INTEGER NOT NULL DEFAULT 1, "
+                   "updated_at REAL NOT NULL, updated_by TEXT NOT NULL)")
+        c0.execute("INSERT INTO products VALUES('L1','Legacy',5.0,10,1,1.0,'seed')")
+        c0.commit(); c0.close()
+        ldb = LocalDB(leg)
+        assert ldb.get_product("L1")["tax_rate"] == 0.0
+        sale2 = ldb.create_sale([("L1", 1)], "T-X")
+        assert sale2["total"] == 5.0 and sale2["tax_total"] == 0.0, sale2
+        return ("2x Widget@18% + 1x Bolt@5% + 1x tax-free: subtotal $25.00, "
+                "tax $3.70, total $28.70; breakdown persisted, printed, and "
+                "synced; pre-tax DBs migrate cleanly with 0% default")
+    finally:
+        a.close()
+
+
+class _FakeLLM(http.server.BaseHTTPRequestHandler):
+    """Minimal OpenAI-compatible /chat/completions stub for S12."""
+    mode = "ok"
+    seen: list = []
+
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length", 0))
+        _FakeLLM.seen.append(json.loads(self.rfile.read(length) or b"{}"))
+        if _FakeLLM.mode == "error":
+            self.send_response(500); self.end_headers(); return
+        payload = json.dumps(
+            {"choices": [{"message": {"content": "LLM: sales look good today"}}]}
+        ).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def log_message(self, *args):  # keep test output clean
+        pass
+
+
+# ---------------------------------------------------------------- S12
+@scenario("S12: real LLM chatbot with graceful fallback")
+def s12():
+    tmp, central = make_env()
+    e = make_terminal("T-E", tmp, central)
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _FakeLLM)
+    port = srv.server_address[1]
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    old_env = dict(os.environ)
+    try:
+        os.environ["OFFLINEPOS_LLM_BASE_URL"] = f"http://127.0.0.1:{port}/v1"
+        os.environ["OFFLINEPOS_LLM_API_KEY"] = "test-key"
+        os.environ["OFFLINEPOS_LLM_MODEL"] = "test-model"
+        e.seed_catalog([("W9", "Widget", 10.0, 20)])
+        e.set_online(True)
+        ans = e.ask("how are sales?")
+        assert ans == "LLM: sales look good today", ans
+        body = _FakeLLM.seen[-1]
+        assert body["model"] == "test-model", body
+        msgs = {m["role"]: m["content"] for m in body["messages"]}
+        assert "OfflinePOS terminal T-E" in msgs["system"], msgs["system"]
+        assert "how are sales?" in msgs["user"]
+        # server blows up -> degrade to offline intents, no exception
+        _FakeLLM.mode = "error"
+        e.scan("W9", 1); e.checkout()
+        fb = e.ask("total sales today")
+        assert "$10.00" in fb, fb
+        # no key configured -> offline intents, and no HTTP attempt at all
+        del os.environ["OFFLINEPOS_LLM_API_KEY"]
+        _FakeLLM.mode = "ok"
+        n = len(_FakeLLM.seen)
+        fb2 = e.ask("total sales today")
+        assert "$10.00" in fb2 and len(_FakeLLM.seen) == n, fb2
+        return ("online LLM answered through a fake OpenAI-compatible server; "
+                "request carried model + store-context system prompt; HTTP 500 "
+                "fell back to offline intents; missing key made zero HTTP calls")
+    finally:
+        os.environ.clear(); os.environ.update(old_env)
+        _FakeLLM.mode = "ok"
+        srv.shutdown(); srv.server_close()
+        e.close()
+
+
 def write_report():
     passed = sum(1 for r in RESULTS if r["passed"])
     lines = ["# OfflinePOS Simulation Results",
@@ -359,7 +492,7 @@ def write_report():
 
 
 if __name__ == "__main__":
-    for fn in (s1, s2, s3, s4, s5, s6, s7, s8, s9, s10):
+    for fn in (s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12):
         fn()
     ok = write_report()
     sys.exit(0 if ok else 1)

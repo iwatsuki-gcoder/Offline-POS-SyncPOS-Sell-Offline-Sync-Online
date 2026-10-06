@@ -1,19 +1,21 @@
 # OfflinePOS Simulation Results
 
-Ran 10 scenarios, **10 passed**, 0 failed.
+Ran 12 scenarios, **12 passed**, 0 failed.
 
 | Scenario | Result | Time (s) |
 |---|---|---|
 | S1: offline sale, then sync | PASS | 0.02 |
-| S2: price conflict -> last-write-wins | PASS | 0.02 |
+| S2: price conflict -> last-write-wins | PASS | 0.01 |
 | S3: concurrent offline sales -> delta merge | PASS | 0.02 |
-| S4: flaky link -> backoff + exactly-once | PASS | 0.43 |
-| S5: billing preempts saturated background lane | PASS | 2.01 |
+| S4: flaky link -> backoff + exactly-once | PASS | 0.41 |
+| S5: billing preempts saturated background lane | PASS | 2.0 |
 | S6: chatbot answers offline | PASS | 0.01 |
-| S7: clock skew -> LWW still decides, conflict logged | PASS | 0.01 |
-| S8: login, roles, sessions | PASS | 0.48 |
-| S9: receipt printing (file + printer fallback) | PASS | 0.0 |
-| S10: product catalog + barcode lookup | PASS | 0.01 |
+| S7: clock skew -> LWW still decides, conflict logged | PASS | 0.02 |
+| S8: login, roles, sessions | PASS | 0.5 |
+| S9: receipt printing (file + printer fallback) | PASS | 0.01 |
+| S10: product catalog + barcode lookup | PASS | 0.02 |
+| S11: tax calculation on checkout | PASS | 0.04 |
+| S12: real LLM chatbot with graceful fallback | PASS | 0.57 |
 
 ## Details
 
@@ -35,7 +37,7 @@ A sold 2, B sold 3 while offline; central stock 100->95 (commutative delta merge
 
 ### S5: billing preempts saturated background lane - PASS
 
-background lane blocked ~2s; checkout completed in 0.002s via dedicated billing worker; wait stats: {'count': 1, 'p50': 0.0, 'max': 0.0}
+background lane blocked ~2s; checkout completed in 0.001s via dedicated billing worker; wait stats: {'count': 1, 'p50': 0.0, 'max': 0.0}
 
 ### S6: chatbot answers offline - PASS
 
@@ -51,9 +53,17 @@ manager/cashier logins OK, bad password + unknown user rejected, session create/
 
 ### S9: receipt printing (file + printer fallback) - PASS
 
-42-col receipt OK (total $45.50); file backend wrote /tmp/offlinepos_print_v6qm5wkm/rcpts/receipt_abc123de_COUNTER-1.txt; unreachable network printer fell back to file, no exception
+42-col receipt OK (total $45.50); file backend wrote /tmp/offlinepos_print_5l3rd5pg/rcpts/receipt_abc123de_COUNTER-1.txt; unreachable network printer fell back to file, no exception
 
 ### S10: product catalog + barcode lookup - PASS
 
 6 products loaded from catalog/products.csv, all EAN-13 valid and unique; scan of 8901011000015 -> Widget; unknown -> None; central carries the barcode too
+
+### S11: tax calculation on checkout - PASS
+
+2x Widget@18% + 1x Bolt@5% + 1x tax-free: subtotal $25.00, tax $3.70, total $28.70; breakdown persisted, printed, and synced; pre-tax DBs migrate cleanly with 0% default
+
+### S12: real LLM chatbot with graceful fallback - PASS
+
+online LLM answered through a fake OpenAI-compatible server; request carried model + store-context system prompt; HTTP 500 fell back to offline intents; missing key made zero HTTP calls
 

@@ -30,17 +30,30 @@ CUT = b"\x1dV\x00"
 LF = b"\n"
 
 
+def _tax_label(sale: dict) -> str:
+    """'TAX (18%)' when every line shares one rate, else plain 'TAX'."""
+    rates = {line[3] for line in sale["items"] if len(line) > 3 and line[3]}
+    if len(rates) == 1:
+        return f"TAX ({next(iter(rates)):g}%)"
+    return "TAX"
+
+
 def format_text_receipt(sale: dict, terminal_id: str) -> str:
     """42-column plain-text receipt from a checkout ``sale`` dict."""
+    subtotal = sale.get("subtotal", sale["total"])
+    tax_total = sale.get("tax_total", 0.0)
     lines = ["OfflinePOS".center(WIDTH), terminal_id.center(WIDTH),
              datetime.datetime.now().strftime("%Y-%m-%d %H:%M").center(WIDTH),
              "-" * WIDTH]
-    for pid, qty, price in sale["items"]:
+    for line in sale["items"]:
+        pid, qty, price = line[0], line[1], line[2]
         left = f"{pid} x{qty}"
         right = f"${qty * price:.2f}"
         lines.append(f"{left:<{WIDTH - len(right)}}{right}")
         lines.append(f"  @ ${price:.2f}")
     lines += ["-" * WIDTH,
+              f"{'SUBTOTAL':<{WIDTH - 8}}${subtotal:.2f}",
+              f"{_tax_label(sale):<{WIDTH - 8}}${tax_total:.2f}",
               f"{'TOTAL':<{WIDTH - 8}}${sale['total']:.2f}",
               f"txn {sale['txn_id'][:8]}",
               "Stored locally - syncs when online".center(WIDTH)]
@@ -48,16 +61,21 @@ def format_text_receipt(sale: dict, terminal_id: str) -> str:
 
 
 def _escpos_bytes(sale: dict, terminal_id: str) -> bytes:
+    subtotal = sale.get("subtotal", sale["total"])
+    tax_total = sale.get("tax_total", 0.0)
     out = bytearray(INIT)
     out += ALIGN_CENTER + BOLD_ON
     out += "OfflinePOS".encode("cp437", "replace") + LF
     out += BOLD_OFF + terminal_id.encode("cp437", "replace") + LF
     out += ALIGN_LEFT
-    for pid, qty, price in sale["items"]:
+    for line in sale["items"]:
+        pid, qty, price = line[0], line[1], line[2]
         left = f"{pid} x{qty}"
         right = f"${qty * price:.2f}"
         out += f"{left:<{WIDTH - len(right)}}{right}\n".encode("cp437", "replace")
     out += ALIGN_CENTER + BOLD_ON
+    out += f"SUBTOTAL ${subtotal:.2f}\n".encode("cp437", "replace")
+    out += f"{_tax_label(sale)} ${tax_total:.2f}\n".encode("cp437", "replace")
     out += f"TOTAL ${sale['total']:.2f}\n".encode("cp437", "replace")
     out += BOLD_OFF + LF + LF + CUT
     return bytes(out)
