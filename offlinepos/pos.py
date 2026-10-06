@@ -107,7 +107,7 @@ class Terminal:
         # .get() fallbacks keep pre-tax sale dicts printable
         subtotal = sale.get("subtotal", sale["total"])
         tax_total = sale.get("tax_total", 0.0)
-        lines = [f"=== OfflinePOS receipt ({self.terminal_id}) ==="]
+        lines = [f"=== SwiftBill receipt ({self.terminal_id}) ==="]
         for line in sale["items"]:
             pid, qty, price = line[0], line[1], line[2]
             tax_rate = line[3] if len(line) > 3 else 0.0

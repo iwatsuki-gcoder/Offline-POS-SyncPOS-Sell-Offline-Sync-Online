@@ -1,4 +1,4 @@
-"""Receipt printing for OfflinePOS.
+"""Receipt printing for SwiftBill.
 
 Two backends, chosen by env config:
 - ``file`` (default): writes a 42-column text receipt to
@@ -42,7 +42,7 @@ def format_text_receipt(sale: dict, terminal_id: str) -> str:
     """42-column plain-text receipt from a checkout ``sale`` dict."""
     subtotal = sale.get("subtotal", sale["total"])
     tax_total = sale.get("tax_total", 0.0)
-    lines = ["OfflinePOS".center(WIDTH), terminal_id.center(WIDTH),
+    lines = ["SwiftBill".center(WIDTH), terminal_id.center(WIDTH),
              datetime.datetime.now().strftime("%Y-%m-%d %H:%M").center(WIDTH),
              "-" * WIDTH]
     for line in sale["items"]:
@@ -65,7 +65,7 @@ def _escpos_bytes(sale: dict, terminal_id: str) -> bytes:
     tax_total = sale.get("tax_total", 0.0)
     out = bytearray(INIT)
     out += ALIGN_CENTER + BOLD_ON
-    out += "OfflinePOS".encode("cp437", "replace") + LF
+    out += "SwiftBill".encode("cp437", "replace") + LF
     out += BOLD_OFF + terminal_id.encode("cp437", "replace") + LF
     out += ALIGN_LEFT
     for line in sale["items"]:

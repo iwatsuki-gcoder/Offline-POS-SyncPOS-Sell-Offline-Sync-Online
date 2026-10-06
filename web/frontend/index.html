@@ -3,14 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>OfflinePOS</title>
+<title>SwiftBill</title>
+<link rel="icon" type="image/webp" href="assets/logo.webp">
 <style>
   :root{--bg:#121417;--surface:#1c1f24;--surface2:#242830;--text:#f2f4f8;--muted:#9aa3b2;
     --green:#22c55e;--red:#ef4444;--amber:#f59e0b;--blue:#3b82f6;--border:#2e333d;--radius:12px;}
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:var(--bg);color:var(--text);font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh}
   header{display:flex;align-items:center;gap:12px;padding:12px 20px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10}
-  .logo{font-weight:800;font-size:18px}.logo span{color:var(--blue)}
+  .logo{font-weight:800;font-size:18px;display:flex;align-items:center;gap:9px}.logo span{color:var(--blue)}.logo img{width:30px;height:30px;border-radius:8px}
   select{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px}
   .pill{margin-left:auto;cursor:pointer;border:none;border-radius:999px;padding:6px 14px;font-weight:700;font-size:13px;color:#fff}
   .pill.online{background:var(--green)}.pill.offline{background:var(--red)}
@@ -82,7 +83,7 @@
 </head>
 <body>
 <header>
-  <div class="logo">Offline<span>POS</span></div>
+  <div class="logo"><img src="assets/logo.webp" alt="SwiftBill logo">Swift<span>Bill</span></div>
   <select id="termSel"><option>COUNTER-1</option><option>COUNTER-2</option></select>
   <button class="pill offline" id="netPill" title="Manual simulation toggle">OFFLINE</button>
   <button class="pill ghost" id="netAutoBtn" title="Toggle real connectivity auto-detect" style="font-size:11px;padding:6px 10px">Auto ○</button>
@@ -91,7 +92,8 @@
 </header>
 <div id="loginOverlay">
   <div class="login-card">
-    <h2>Offline<span style="color:var(--blue)">POS</span></h2>
+    <img src="assets/logo.webp" alt="SwiftBill logo" style="width:64px;height:64px;border-radius:16px;margin-bottom:12px">
+    <h2>Swift<span style="color:var(--blue)">Bill</span></h2>
     <p>Sign in to start the shift.</p>
     <div class="err" id="loginErr"></div>
     <input id="loginUser" placeholder="Username" autocomplete="username">
@@ -168,7 +170,7 @@
   </section>
 </main>
 <div class="modal" id="receiptModal"><div class="receipt">
-  <h4>OfflinePOS</h4><div id="rcptTerm" style="text-align:center;color:#555"></div>
+  <h4>SwiftBill</h4><div id="rcptTerm" style="text-align:center;color:#555"></div>
   <div id="rcptLines"></div><hr>
   <div class="row"><span>Subtotal</span><span id="rcptSubtotal"></span></div>
   <div class="row"><span>Tax</span><span id="rcptTax"></span></div>
