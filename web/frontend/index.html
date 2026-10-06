@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OfflinePOS</title>
+<style>
+  :root{--bg:#121417;--surface:#1c1f24;--surface2:#242830;--text:#f2f4f8;--muted:#9aa3b2;
+    --green:#22c55e;--red:#ef4444;--amber:#f59e0b;--blue:#3b82f6;--border:#2e333d;--radius:12px;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh}
+  header{display:flex;align-items:center;gap:12px;padding:12px 20px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10}
+  .logo{font-weight:800;font-size:18px}.logo span{color:var(--blue)}
+  select{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px}
+  .pill{margin-left:auto;cursor:pointer;border:none;border-radius:999px;padding:6px 14px;font-weight:700;font-size:13px;color:#fff}
+  .pill.online{background:var(--green)}.pill.offline{background:var(--red)}
+  .clock{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+  nav{display:flex;gap:8px;padding:12px 20px 0}
+  nav button{background:none;border:none;color:var(--muted);font-size:15px;font-weight:600;padding:10px 16px;cursor:pointer;border-bottom:3px solid transparent}
+  nav button.active{color:var(--text);border-bottom-color:var(--blue)}
+  main{padding:16px 20px 40px;max-width:1200px;margin:0 auto}
+  .screen{display:none}.screen.active{display:block}
+  .grid2{display:grid;grid-template-columns:1fr 340px;gap:16px}
+  @media(max-width:900px){.grid2{grid-template-columns:1fr}}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+  .card h3{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px}
+  .search{width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:14px;margin-bottom:12px}
+  .products{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .prod{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;cursor:pointer}
+  .prod:hover{border-color:var(--blue)}.prod.out{opacity:.45;cursor:not-allowed}
+  .prod .nm{font-weight:700;font-size:14px}.prod .pr{color:var(--green);font-weight:700;font-variant-numeric:tabular-nums;margin-top:4px}
+  .prod .st{font-size:12px;color:var(--muted);margin-top:2px}
+  .cart-line{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);font-size:14px}
+  .cart-line .n{flex:1}.step{background:var(--surface2);border:1px solid var(--border);color:var(--text);width:28px;height:28px;border-radius:8px;cursor:pointer;font-size:16px}
+  .qty{min-width:24px;text-align:center;font-variant-numeric:tabular-nums}
+  .total{display:flex;justify-content:space-between;font-size:20px;font-weight:800;margin:14px 0;font-variant-numeric:tabular-nums}
+  .btn{width:100%;padding:14px;border:none;border-radius:10px;font-size:16px;font-weight:800;cursor:pointer;color:#fff;background:var(--blue)}
+  .btn.green{background:var(--green)}.btn.ghost{background:var(--surface2);border:1px solid var(--border);font-size:14px;padding:10px;margin-top:8px}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:50}
+  .modal.show{display:flex}
+  .receipt{background:#fff;color:#111;border-radius:10px;padding:24px;width:320px;font-family:ui-monospace,monospace;font-size:13px}
+  .receipt h4{text-align:center;margin-bottom:8px}.receipt .row{display:flex;justify-content:space-between}
+  .receipt hr{border:none;border-top:1px dashed #999;margin:8px 0}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+  .stat{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px}
+  .stat .v{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums}.stat .l{font-size:12px;color:var(--muted);margin-top:4px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;color:var(--muted);font-weight:600;padding:8px;border-bottom:1px solid var(--border)}
+  td{padding:8px;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums}
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700}
+  .b-amber{background:rgba(245,158,11,.15);color:var(--amber)}.b-green{background:rgba(34,197,94,.15);color:var(--green)}
+  .chat{display:flex;flex-direction:column;gap:10px;max-height:420px;overflow-y:auto;margin-bottom:12px}
+  .msg{max-width:80%;padding:10px 14px;border-radius:14px;font-size:14px;line-height:1.45}
+  .msg.bot{background:var(--surface2);align-self:flex-start;border-bottom-left-radius:4px}
+  .msg.user{background:var(--blue);align-self:flex-end;border-bottom-right-radius:4px;color:#fff}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .chip{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:999px;padding:8px 14px;font-size:13px;cursor:pointer}
+  .chip:hover{border-color:var(--blue)}
+  .chatrow{display:flex;gap:8px}.chatrow input{flex:1;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:14px}
+  .note{font-size:12px;color:var(--muted);margin-top:10px}
+  .modebadge{font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;background:rgba(245,158,11,.15);color:var(--amber)}
+  .modebadge.on{background:rgba(34,197,94,.15);color:var(--green)}
+  #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--red);color:#fff;padding:10px 18px;border-radius:10px;font-size:14px;display:none;z-index:99}
+  .scanrow{display:flex;gap:8px;margin-bottom:12px}
+  .scanrow .search{margin-bottom:0}
+  #scanBtn{white-space:nowrap;width:auto;padding:10px 16px;font-size:14px}
+  #scanModal .card{width:380px;max-width:92vw}
+  #scanVideo{width:100%;border-radius:10px;background:#000;min-height:220px}
+  #scanStatus{font-size:13px;color:var(--muted);margin-top:8px;min-height:18px}
+  #loginOverlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:100}
+  #loginOverlay.hidden{display:none}
+  .login-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;width:340px}
+  .login-card h2{margin-bottom:4px}.login-card p{color:var(--muted);font-size:13px;margin-bottom:16px}
+  .login-card input{width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:14px;margin-bottom:10px}
+  .login-card .err{color:var(--red);font-size:13px;min-height:18px;margin-bottom:6px}
+  .userchip{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+  .userchip button{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:4px 10px;cursor:pointer;font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Offline<span>POS</span></div>
+  <select id="termSel"><option>COUNTER-1</option><option>COUNTER-2</option></select>
+  <button class="pill offline" id="netPill" title="Toggle connectivity">OFFLINE</button>
+  <div class="clock" id="clock">--:--:--</div>
+  <div class="userchip" id="userChip" style="display:none"><span id="userName"></span><button id="logoutBtn">Sign out</button></div>
+</header>
+<div id="loginOverlay">
+  <div class="login-card">
+    <h2>Offline<span style="color:var(--blue)">POS</span></h2>
+    <p>Sign in to start the shift.</p>
+    <div class="err" id="loginErr"></div>
+    <input id="loginUser" placeholder="Username" autocomplete="username">
+    <input id="loginPass" type="password" placeholder="Password" autocomplete="current-password">
+    <button class="btn" id="loginBtn">Sign in</button>
+    <p style="margin-top:12px">Demo accounts — manager: <b>manager / admin123</b><br>cashier: <b>cashier / cashier123</b></p>
+  </div>
+</div>
+<nav>
+  <button class="active" data-tab="billing">Billing</button>
+  <button data-tab="dash">Sync Dashboard</button>
+  <button data-tab="chat">Assistant <span class="modebadge" id="modeBadge">Offline</span></button>
+</nav>
+<main>
+  <section class="screen active" id="tab-billing">
+    <div class="grid2">
+      <div class="card"><h3>Products</h3>
+        <div class="scanrow">
+          <input class="search" id="search" placeholder="Search or scan barcode…">
+          <button class="btn" id="scanBtn">📷 Scan</button>
+        </div>
+        <div class="products" id="prodGrid"></div>
+        <p class="note">USB scanners work too — just scan into the search box and hit Enter.</p>
+      </div>
+      <div class="card"><h3>Cart</h3>
+        <div id="cartLines"></div>
+        <div class="total"><span>Total</span><span id="cartTotal">$0.00</span></div>
+        <button class="btn" id="chargeBtn" disabled>Charge</button>
+        <p class="note">Charge works offline — the sale is stored locally and syncs later.</p>
+      </div>
+    </div>
+  </section>
+  <section class="screen" id="tab-dash">
+    <div class="stats">
+      <div class="stat"><div class="v" id="stTx">–</div><div class="l">Pending transactions</div></div>
+      <div class="stat"><div class="v" id="stDe">–</div><div class="l">Pending stock deltas</div></div>
+      <div class="stat"><div class="v" id="stUp">–</div><div class="l">Pending price updates</div></div>
+      <div class="stat"><div class="v" style="font-size:16px" id="stLa">–</div><div class="l">Last sync</div></div>
+    </div>
+    <div class="grid2" style="grid-template-columns:1fr 1fr">
+      <div class="card"><h3>Sync control</h3>
+        <button class="btn green" id="syncBtn">Sync now</button>
+        <button class="btn ghost" id="conflictBtn">Run conflict demo</button>
+        <button class="btn ghost" id="resetBtn">Reset demo data</button>
+        <p class="note" id="syncNote"></p>
+      </div>
+      <div class="card"><h3>Conflicts needing review <span class="badge b-amber" id="cfCount">0</span></h3>
+        <table><thead><tr><th>Product</th><th>Kept</th><th>Overwritten</th><th>Resolution</th></tr></thead>
+        <tbody id="cfBody"><tr><td colspan="4" style="color:var(--muted)">No conflicts.</td></tr></tbody></table>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px"><h3>Products</h3>
+      <table><thead><tr><th>ID</th><th>Name</th><th>Price</th><th>Stock</th><th>Updated by</th></tr></thead>
+      <tbody id="dashBody"></tbody></table>
+    </div>
+  </section>
+  <section class="screen" id="tab-chat">
+    <div class="card">
+      <h3>Assistant <span class="modebadge" id="modeBadge2">Offline — local intents</span></h3>
+      <div class="chat" id="chatBox"><div class="msg bot">Hi! Ask me about sales, stock, or sync. I work fully offline.</div></div>
+      <div class="chips">
+        <button class="chip" data-q="total sales today">Sales today</button>
+        <button class="chip" data-q="sync status">Sync status</button>
+        <button class="chip" data-q="help">Help</button>
+      </div>
+      <div class="chatrow">
+        <input id="chatIn" placeholder="Ask about sales, stock, or sync…">
+        <button class="btn" id="sendBtn" style="width:auto;padding:12px 20px">Send</button>
+      </div>
+      <p class="note">Online mode would call the LLM API (ADR-002); offline it uses local intents — never an error.</p>
+    </div>
+  </section>
+</main>
+<div class="modal" id="receiptModal"><div class="receipt">
+  <h4>OfflinePOS</h4><div id="rcptTerm" style="text-align:center;color:#555"></div>
+  <div id="rcptLines"></div><hr>
+  <div class="row"><b>TOTAL</b><b id="rcptTotal"></b></div>
+  <div class="row" style="margin-top:6px"><span>txn</span><span id="rcptTxn"></span></div>
+  <p style="text-align:center;margin-top:10px">Stored locally — will sync when online.</p>
+  <button class="btn" id="printBtn" style="margin-top:12px;background:var(--green)">Print receipt</button>
+  <button class="btn ghost" style="margin-top:8px" onclick="document.getElementById('receiptModal').classList.remove('show')">Done</button>
+  <p class="note" id="printNote" style="text-align:center"></p>
+</div></div>
+<div id="toast"></div>
+<div class="modal" id="scanModal"><div class="card">
+  <h3>Scan barcode</h3>
+  <video id="scanVideo" playsinline muted></video>
+  <p id="scanStatus">Point the camera at a barcode…</p>
+  <button class="btn ghost" id="scanClose" style="margin-top:8px">Cancel</button>
+</div></div>
+<script>
+let terminal='COUNTER-1', online=false, products=[], cart={}, lastSale=null;
+let authToken=sessionStorage.getItem('op_token'), authRole=sessionStorage.getItem('op_role'), authName=sessionStorage.getItem('op_name');
+const $=id=>document.getElementById(id);
+function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',3500);}
+function authHeaders(){const h={'Content-Type':'application/json'};if(authToken)h['Authorization']='Bearer '+authToken;return h;}
+async function api(path,opts={}){
+  opts.headers=Object.assign(authHeaders(),opts.headers||{});
+  const r=await fetch(path+(path.includes('?')?'&':'?')+'terminal='+terminal,opts);
+  if(r.status===401){showLogin('Session expired — please sign in again.');throw new Error('unauthorized');}
+  if(!r.ok){const e=await r.json().catch(()=>({detail:r.statusText}));throw new Error(e.detail||r.statusText);}
+  return r.json();
+}
+function showLogin(msg){
+  authToken=null;sessionStorage.clear();
+  $('userChip').style.display='none';
+  $('loginOverlay').classList.remove('hidden');
+  if(msg)$('loginErr').textContent=msg;
+}
+async function doLogin(){
+  $('loginErr').textContent='';
+  try{
+    const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({username:$('loginUser').value,password:$('loginPass').value})});
+    if(!r.ok)throw new Error('Invalid username or password.');
+    const d=await r.json();
+    authToken=d.token;authRole=d.role;authName=d.name;
+    sessionStorage.setItem('op_token',authToken);sessionStorage.setItem('op_role',authRole);sessionStorage.setItem('op_name',authName);
+    enterApp();
+  }catch(e){$('loginErr').textContent=e.message;}
+}
+function enterApp(){
+  $('loginOverlay').classList.add('hidden');
+  $('userChip').style.display='flex';
+  $('userName').textContent=authName+' ('+authRole+')';
+  const mgr=authRole==='manager';
+  document.querySelector('nav button[data-tab="dash"]').style.display=mgr?'':'none';
+  $('conflictBtn').style.display=mgr?'':'none';
+  $('resetBtn').style.display=mgr?'':'none';
+  if(!mgr){document.querySelector('nav button[data-tab="billing"]').click();}
+  loadProducts(); renderCart();
+  if(mgr) refreshDash();
+}
+$('loginBtn').addEventListener('click',doLogin);
+$('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+$('logoutBtn').addEventListener('click',async()=>{
+  try{await fetch('/api/auth/logout',{method:'POST',headers:authHeaders()});}catch(e){}
+  showLogin();
+});
+// tabs
+document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  $('tab-'+b.dataset.tab).classList.add('active');
+  if(b.dataset.tab==='dash') refreshDash();
+}));
+setInterval(()=>{$('clock').textContent=new Date().toLocaleTimeString();},1000);
+$('termSel').addEventListener('change',e=>{terminal=e.target.value;cart={};loadProducts();renderCart();refreshDash();});
+// connectivity
+$('netPill').addEventListener('click',async()=>{
+  try{
+    const d=await api('/api/net',{method:'POST',body:JSON.stringify({online:!online})});
+    setOnline(d.online); refreshDash();
+  }catch(e){if(e.message!=='unauthorized')toast('Network error: '+e.message);}
+});
+function setOnline(v){
+  online=v; const p=$('netPill');
+  p.textContent=v?'ONLINE':'OFFLINE'; p.className='pill '+(v?'online':'offline');
+  for(const id of ['modeBadge','modeBadge2']){
+    const el=$(id); el.classList.toggle('on',v);
+    el.textContent=id==='modeBadge2'?(v?'Online — LLM':'Offline — local intents'):(v?'Online':'Offline');
+  }
+}
+// products + cart
+async function loadProducts(){
+  try{products=(await api('/api/products')).products; renderProds($('search').value);}
+  catch(e){toast('Failed to load products: '+e.message);}
+}
+function renderProds(f=''){
+  const g=$('prodGrid'); g.innerHTML='';
+  products.filter(p=>(p.name+p.product_id).toLowerCase().includes(f.toLowerCase())).forEach(p=>{
+    const d=document.createElement('div');
+    d.className='prod'+(p.stock===0?' out':'');
+    d.innerHTML=`<div class="nm">${p.name}</div><div class="pr">$${p.price.toFixed(2)}</div><div class="st">${p.stock} in stock${p.barcode?'<br>⛁ '+p.barcode:''}</div>`;
+    if(p.stock>0) d.onclick=()=>{cart[p.product_id]=(cart[p.product_id]||0)+1;renderCart();};
+    g.appendChild(d);
+  });
+}
+$('search').addEventListener('input',e=>renderProds(e.target.value));
+// USB barcode scanners type the digits + Enter: treat Enter as a scan.
+$('search').addEventListener('keydown',async e=>{
+  if(e.key!=='Enter')return;
+  const v=e.target.value.trim();
+  if(/^\d{8,}$/.test(v)){
+    e.target.value=''; renderProds('');
+    await lookupBarcode(v);
+  }
+});
+function beep(){
+  try{
+    const ctx=new (window.AudioContext||window.webkitAudioContext)();
+    const o=ctx.createOscillator(),g=ctx.createGain();
+    o.connect(g);g.connect(ctx.destination);o.frequency.value=880;
+    g.gain.setValueAtTime(0.15,ctx.currentTime);
+    o.start();o.stop(ctx.currentTime+0.12);
+  }catch(e){}
+}
+async function lookupBarcode(code){
+  try{
+    const p=await api('/api/products/by-barcode/'+encodeURIComponent(code));
+    if(p.stock<=0){toast(p.name+' is out of stock.');return;}
+    cart[p.product_id]=(cart[p.product_id]||0)+1; renderCart(); beep();
+    toast('Added '+p.name);
+  }catch(e){
+    if(e.message!=='unauthorized')toast(e.message.includes('404')||e.message.includes('no product')?'Unknown barcode: '+code:e.message);
+  }
+}
+// Camera scanning via the native BarcodeDetector (no library, works offline).
+let scanStream=null, scanTimer=null;
+function stopScan(){
+  if(scanTimer){clearInterval(scanTimer);scanTimer=null;}
+  if(scanStream){scanStream.getTracks().forEach(t=>t.stop());scanStream=null;}
+  $('scanModal').classList.remove('show');
+}
+$('scanBtn').addEventListener('click',async()=>{
+  if(!('BarcodeDetector' in window)){
+    toast('Camera scanning needs Chrome/Edge. USB scanners and manual entry still work.');
+    return;
+  }
+  $('scanModal').classList.add('show');
+  $('scanStatus').textContent='Starting camera…';
+  try{
+    scanStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    const video=$('scanVideo'); video.srcObject=scanStream; await video.play();
+    const detector=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128']});
+    let busy=false;
+    scanTimer=setInterval(async()=>{
+      if(busy)return; busy=true;
+      try{
+        const codes=await detector.detect(video);
+        if(codes.length){
+          const code=codes[0].rawValue;
+          $('scanStatus').textContent='Found: '+code;
+          stopScan(); await lookupBarcode(code);
+        }
+      }catch(e){}finally{busy=false;}
+    },500);
+    $('scanStatus').textContent='Point the camera at a barcode…';
+  }catch(e){
+    $('scanStatus').textContent='Camera unavailable: '+e.message;
+  }
+});
+$('scanClose').addEventListener('click',stopScan);
+function renderCart(){
+  const box=$('cartLines'); box.innerHTML=''; let total=0,n=0;
+  for(const [id,q] of Object.entries(cart)){
+    const p=products.find(x=>x.product_id===id); if(!p) continue;
+    total+=p.price*q; n++;
+    const row=document.createElement('div'); row.className='cart-line';
+    row.innerHTML=`<span class="n">${p.name}</span><button class="step" data-a="-">−</button><span class="qty">${q}</span><button class="step" data-a="+">+</button><span>$${(p.price*q).toFixed(2)}</span>`;
+    row.querySelector('[data-a="-"]').onclick=()=>{cart[id]--;if(cart[id]<=0)delete cart[id];renderCart();};
+    row.querySelector('[data-a="+"]').onclick=()=>{cart[id]++;renderCart();};
+    box.appendChild(row);
+  }
+  if(!n) box.innerHTML='<p style="color:var(--muted);font-size:14px">Tap a product to add it.</p>';
+  $('cartTotal').textContent='$'+total.toFixed(2);
+  $('chargeBtn').disabled=!n;
+}
+$('chargeBtn').addEventListener('click',async()=>{
+  const items=Object.entries(cart).map(([product_id,qty])=>({product_id,qty}));
+  try{
+    const r=await api('/api/cart/checkout',{method:'POST',body:JSON.stringify({items})});
+    lastSale=r.sale; $('printNote').textContent='';
+    $('rcptTerm').textContent=terminal;
+    $('rcptLines').innerHTML=r.sale.items.map(([pid,q,pr])=>`<div class="row"><span>${pid} x${q}</span><span>$${(q*pr).toFixed(2)}</span></div>`).join('');
+    $('rcptTotal').textContent='$'+r.sale.total.toFixed(2);
+    $('rcptTxn').textContent=r.sale.txn_id.slice(0,8);
+    $('receiptModal').classList.add('show');
+    cart={}; renderCart(); loadProducts(); refreshDash();
+  }catch(e){toast('Checkout failed: '+e.message);}
+});
+// dashboard
+async function refreshDash(){
+  try{
+    const s=await api('/api/sync/status');
+    setOnlinePillOnly(s.online);
+    $('stTx').textContent=s.pending.txns; $('stDe').textContent=s.pending.deltas; $('stUp').textContent=s.pending.updates;
+    $('stLa').textContent=s.last_sync_ts?new Date(+s.last_sync_ts*1000).toLocaleTimeString():'never';
+    const c=await api('/api/conflicts');
+    $('cfCount').textContent=c.conflicts.length;
+    $('cfBody').innerHTML=c.conflicts.length?c.conflicts.map(x=>{
+      const w=JSON.parse(x.remote_value), l=JSON.parse(x.local_value);
+      const wp=w.price!==undefined?w.price:(w.stock!==undefined?w.stock:''), lp=l.price!==undefined?l.price:(l.stock!==undefined?l.stock:'');
+      return `<tr><td>${x.entity_id}</td><td>$${wp}</td><td>$${lp}</td><td><span class="badge b-amber">${x.resolution}</span></td></tr>`;
+    }).join(''):'<tr><td colspan="4" style="color:var(--muted)">No conflicts.</td></tr>';
+    const h=await api('/api/health');
+    $('dashBody').innerHTML=h.products.map(p=>`<tr><td>${p.product_id}</td><td>${p.name}</td><td>$${p.price.toFixed(2)}</td><td>${p.stock}</td><td>${p.updated_by}</td></tr>`).join('');
+  }catch(e){/* server may be starting */}
+}
+function setOnlinePillOnly(v){
+  online=v; const p=$('netPill');
+  p.textContent=v?'ONLINE':'OFFLINE'; p.className='pill '+(v?'online':'offline');
+  for(const id of ['modeBadge','modeBadge2']){
+    const el=$(id); el.classList.toggle('on',v);
+    el.textContent=id==='modeBadge2'?(v?'Online — LLM':'Offline — local intents'):(v?'Online':'Offline');
+  }
+}
+$('syncBtn').addEventListener('click',async()=>{
+  $('syncNote').textContent='Syncing…';
+  try{
+    const r=await api('/api/sync/now',{method:'POST'});
+    $('syncNote').textContent=r.ok?`Done — pushed ${r.pushed_txns} txn(s), ${r.pushed_deltas} delta(s), ${r.pushed_updates} update(s), ${r.retries} retries, ${r.conflicts.length} conflict(s).`:'Sync deferred: '+r.error;
+    refreshDash(); loadProducts();
+  }catch(e){toast('Sync failed: '+e.message);}
+});
+$('printBtn').addEventListener('click',async()=>{
+  if(!lastSale)return;
+  $('printNote').textContent='Printing…';
+  try{
+    const r=await api('/api/receipt/print',{method:'POST',body:JSON.stringify({sale:lastSale,terminal})});
+    $('printNote').textContent='Printed via '+r.via+'.';
+  }catch(e){if(e.message!=='unauthorized')$('printNote').textContent='Print failed: '+e.message;}
+});
+$('conflictBtn').addEventListener('click',async()=>{
+  try{
+    const r=await api('/api/demo/conflict',{method:'POST'});
+    $('syncNote').textContent=`Conflict demo: central price $${r.central_price.toFixed(2)} — ${r.note}.`;
+    refreshDash();
+  }catch(e){if(e.message!=='unauthorized')toast('Demo failed: '+e.message);}
+});
+$('resetBtn').addEventListener('click',async()=>{
+  try{
+    await api('/api/demo/reset',{method:'POST'}); cart={};
+    loadProducts(); renderCart(); refreshDash(); $('syncNote').textContent='Demo data reset.';
+  }catch(e){if(e.message!=='unauthorized')toast('Reset failed: '+e.message);}
+});
+// chat
+function bubble(html,who){const c=$('chatBox');const d=document.createElement('div');d.className='msg '+who;d.innerHTML=html;c.appendChild(d);c.scrollTop=c.scrollHeight;}
+async function ask(q){
+  bubble(q,'user');
+  try{
+    const r=await api('/api/chat/ask',{method:'POST',body:JSON.stringify({question:q})});
+    const el=$('modeBadge2'); el.classList.toggle('on',r.mode==='online');
+    el.textContent=r.mode==='online'?'Online — LLM':'Offline — local intents';
+    bubble(r.answer.replace(/\n/g,'<br>'),'bot');
+  }catch(e){if(e.message!=='unauthorized')toast('Chat failed: '+e.message);}
+}
+document.querySelectorAll('.chip').forEach(ch=>ch.addEventListener('click',()=>ask(ch.dataset.q)));
+$('sendBtn').addEventListener('click',()=>{const i=$('chatIn');if(i.value.trim()){ask(i.value.trim());i.value='';}});
+$('chatIn').addEventListener('keydown',e=>{if(e.key==='Enter')$('sendBtn').click();});
+// init: restore session if token still valid, else show login
+(async()=>{
+  if(authToken){
+    try{
+      const me=await api('/api/auth/me');
+      authRole=me.role;authName=me.name;
+      sessionStorage.setItem('op_role',authRole);sessionStorage.setItem('op_name',authName);
+      enterApp(); return;
+    }catch(e){/* fall through to login */}
+  }
+  showLogin();
+})();
+setInterval(()=>{if($('tab-dash').classList.contains('active')&&authToken)refreshDash();},4000);
+</script>
+</body>
+</html>
