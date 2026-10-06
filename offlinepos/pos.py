@@ -51,12 +51,13 @@ class Terminal:
 
     # -- catalog --------------------------------------------------------------
     def seed_catalog(self, items: list[tuple]):
-        """Items: (product_id, name, price, stock[, barcode])."""
+        """Items: (product_id, name, price, stock[, barcode[, tax_rate]])."""
         for item in items:
             pid, name, price, stock = item[:4]
             barcode = item[4] if len(item) > 4 else None
+            tax_rate = item[5] if len(item) > 5 else 0.0
             self.db.seed_product(pid, name, price, stock, self.terminal_id,
-                                 barcode=barcode)
+                                 barcode=barcode, tax_rate=tax_rate)
 
     # -- billing ---------------------------------------------------------------
     def scan(self, product_id: str, qty: int = 1):
@@ -96,9 +97,19 @@ class Terminal:
             timeout=timeout)
 
     def _receipt(self, sale: dict) -> dict:
+        # .get() fallbacks keep pre-tax sale dicts printable
+        subtotal = sale.get("subtotal", sale["total"])
+        tax_total = sale.get("tax_total", 0.0)
         lines = [f"=== OfflinePOS receipt ({self.terminal_id}) ==="]
-        for pid, qty, price in sale["items"]:
+        for line in sale["items"]:
+            pid, qty, price = line[0], line[1], line[2]
+            tax_rate = line[3] if len(line) > 3 else 0.0
+            line_tax = line[4] if len(line) > 4 else 0.0
             lines.append(f"{pid} x{qty} @ ${price:.2f} = ${qty * price:.2f}")
+            if line_tax:
+                lines.append(f"  incl. tax {tax_rate:g}% = ${line_tax:.2f}")
+        lines.append(f"SUBTOTAL: ${subtotal:.2f}")
+        lines.append(f"TAX: ${tax_total:.2f}")
         lines.append(f"TOTAL: ${sale['total']:.2f}")
         lines.append(f"txn: {sale['txn_id'][:8]}  idem: {sale['idempotency_key'][:16]}...")
         return {"sale": sale, "text": "\n".join(lines)}

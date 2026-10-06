@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS products(
     name        TEXT NOT NULL,
     price       REAL NOT NULL,
     stock       INTEGER NOT NULL DEFAULT 0,
+    tax_rate    REAL NOT NULL DEFAULT 0, -- percent, e.g. 18 = 18% tax
     version     INTEGER NOT NULL DEFAULT 1,
     updated_at  REAL NOT NULL,          -- unix timestamp (see clock skew notes)
     updated_by  TEXT NOT NULL           -- terminal id, tie-breaker for LWW
@@ -33,8 +34,10 @@ CREATE TABLE IF NOT EXISTS products(
 CREATE TABLE IF NOT EXISTS transactions(
     txn_id          TEXT PRIMARY KEY,
     terminal_id     TEXT NOT NULL,
-    items_json      TEXT NOT NULL,      -- [[product_id, qty, unit_price], ...]
-    total           REAL NOT NULL,
+    items_json      TEXT NOT NULL,      -- [[product_id, qty, unit_price, tax_rate, line_tax], ...]
+    total           REAL NOT NULL,      -- grand total incl. tax (kept for back-compat)
+    subtotal        REAL NOT NULL DEFAULT 0, -- pre-tax
+    tax_total       REAL NOT NULL DEFAULT 0,
     created_at      REAL NOT NULL,
     idempotency_key TEXT NOT NULL UNIQUE,
     synced          INTEGER NOT NULL DEFAULT 0
@@ -98,6 +101,14 @@ class LocalDB:
             pass  # column already exists
         init.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_products_barcode "
                      "ON products(barcode)")
+        # migration: per-product tax rates + sale tax breakdown
+        for ddl in ("ALTER TABLE products ADD COLUMN tax_rate REAL NOT NULL DEFAULT 0",
+                    "ALTER TABLE transactions ADD COLUMN subtotal REAL NOT NULL DEFAULT 0",
+                    "ALTER TABLE transactions ADD COLUMN tax_total REAL NOT NULL DEFAULT 0"):
+            try:
+                init.execute(ddl)
+            except sqlite3.OperationalError:
+                pass  # column already exists
         init.commit()
         init.close()
 
@@ -128,17 +139,18 @@ class LocalDB:
 
     # -- products ----------------------------------------------------------
     def seed_product(self, product_id, name, price, stock, terminal_id="seed",
-                     barcode=None):
+                     barcode=None, tax_rate=0.0):
         with self.write_txn() as c:
             c.execute(
-                """INSERT INTO products(product_id,name,price,stock,version,updated_at,updated_by,barcode)
-                   VALUES(?,?,?,?,?, ?, ?, ?)
+                """INSERT INTO products(product_id,name,price,stock,tax_rate,version,updated_at,updated_by,barcode)
+                   VALUES(?,?,?,?,?,?, ?, ?, ?)
                    ON CONFLICT(product_id) DO UPDATE SET
                      name=excluded.name, price=excluded.price, stock=excluded.stock,
+                     tax_rate=excluded.tax_rate,
                      version=products.version+1, updated_at=excluded.updated_at,
                      updated_by=excluded.updated_by, barcode=excluded.barcode""",
-                (product_id, name, price, stock, 1, self.now(), terminal_id,
-                 barcode),
+                (product_id, name, price, stock, float(tax_rate), 1, self.now(),
+                 terminal_id, barcode),
             )
 
     def get_product(self, product_id) -> dict | None:
@@ -189,27 +201,34 @@ class LocalDB:
         """Atomically: validate stock, decrement, record txn + deltas.
 
         One ``BEGIN IMMEDIATE`` transaction => the sale is all-or-nothing
-        (ACID). Each line item also appends a stock delta so offline sales
-        from many terminals commute and merge without conflicts.
+        (ACID). Tax is computed per line (``line_tax = round(price*qty*rate/100,
+        2)``) inside the same transaction, so the tax breakdown can never
+        disagree with the recorded sale. Each line item also appends a stock
+        delta so offline sales from many terminals commute and merge without
+        conflicts.
         """
         txn_id = uuid.uuid4().hex
         idem = f"{terminal_id}:{txn_id}"
         created = self.now()
         with self.write_txn() as c:
-            lines, total = [], 0.0
+            lines, subtotal, tax_total = [], 0.0, 0.0
             for product_id, qty in items:
                 row = c.execute(
-                    "SELECT price, stock FROM products WHERE product_id=?",
+                    "SELECT price, stock, tax_rate FROM products WHERE product_id=?",
                     (product_id,),
                 ).fetchone()
                 if row is None:
                     raise KeyError(f"unknown product {product_id}")
                 price, stock = row["price"], row["stock"]
+                tax_rate = row["tax_rate"] or 0.0
                 if stock < qty:
                     raise ValueError(
                         f"insufficient stock for {product_id}: have {stock}, need {qty}")
-                total += price * qty
-                lines.append([product_id, qty, price])
+                line_sub = price * qty
+                line_tax = round(line_sub * tax_rate / 100.0, 2)
+                subtotal += line_sub
+                tax_total += line_tax
+                lines.append([product_id, qty, price, tax_rate, line_tax])
                 c.execute("UPDATE products SET stock=stock-? WHERE product_id=?",
                           (qty, product_id))
                 c.execute(
@@ -217,20 +236,25 @@ class LocalDB:
                        VALUES(?,?,?,?,?,?,0)""",
                     (uuid.uuid4().hex, product_id, -qty, txn_id, created, terminal_id),
                 )
+            subtotal = round(subtotal, 2)
+            tax_total = round(tax_total, 2)
+            total = round(subtotal + tax_total, 2)
             c.execute(
-                """INSERT INTO transactions(txn_id,terminal_id,items_json,total,created_at,
-                                            idempotency_key,synced)
-                   VALUES(?,?,?,?,?,?,0)""",
-                (txn_id, terminal_id, json.dumps(lines), round(total, 2),
-                 created, idem),
+                """INSERT INTO transactions(txn_id,terminal_id,items_json,total,subtotal,tax_total,
+                                            created_at,idempotency_key,synced)
+                   VALUES(?,?,?,?,?,?,?,?,0)""",
+                (txn_id, terminal_id, json.dumps(lines), total, subtotal,
+                 tax_total, created, idem),
             )
             c.execute(
                 "INSERT INTO audit_log(ts,actor,action,details) VALUES(?,?,?,?)",
                 (created, terminal_id, "sale",
-                 json.dumps({"txn_id": txn_id, "total": round(total, 2),
+                 json.dumps({"txn_id": txn_id, "subtotal": subtotal,
+                             "tax_total": tax_total, "total": total,
                              "items": lines})),
             )
-        return {"txn_id": txn_id, "idempotency_key": idem, "total": round(total, 2),
+        return {"txn_id": txn_id, "idempotency_key": idem,
+                "subtotal": subtotal, "tax_total": tax_total, "total": total,
                 "items": lines, "created_at": created, "terminal_id": terminal_id}
 
     # -- sync cursors -------------------------------------------------------

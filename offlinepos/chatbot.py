@@ -2,9 +2,10 @@
 
 Offline: lightweight intent matching directly over the local SQLite data.
 No model, no network -- answers sales totals, stock checks and sync status.
-Online: intended to call an LLM API for open-ended questions. The online
-path is a clearly-marked stub (see docs/ARCHITECTURE_DECISIONS.md ADR-002):
-if no API key is configured it degrades gracefully instead of failing.
+Online: a real LLM call (OpenAI-compatible ``/chat/completions``, see
+``offlinepos/llm.py``) with live store context injected into the system
+prompt. Any failure — no API key, timeout, bad response — degrades
+gracefully to the offline intents instead of failing (ADR-002).
 
 Key design point: the bot subscribes to the *same* Connectivity state
 machine as the sync engine, so "offline mode" can never disagree with the
@@ -13,8 +14,9 @@ sync engine's view of the world.
 from __future__ import annotations
 
 import datetime
-import os
 import re
+
+from . import llm as _llm
 
 
 class Chatbot:
@@ -39,15 +41,41 @@ class Chatbot:
             # graceful degradation: fall through to local intents
         return self._answer_offline(q)
 
-    # -- online (stub with documented fallback) ------------------------------------
+    # -- online (real LLM with documented fallback) -------------------------------
     def _ask_llm(self, question: str) -> str | None:
-        api_key = os.environ.get("OFFLINEPOS_LLM_KEY")
-        if not api_key:
+        client = _llm.client_from_env()
+        if client is None:
             return None  # not configured -> degrade to offline intents
-        # Production would POST to the configured LLM endpoint here.
-        return (f"[online LLM] (stub - no real call made in this build) "
-                f"You asked: {question!r}. Configure OFFLINEPOS_LLM_KEY "
-                f"and the provider endpoint to enable live answers.")
+        try:
+            return client.chat(self._system_prompt(), question)
+        except _llm.LLMError:
+            return None  # network/key failure -> degrade, never raise
+
+    def _system_prompt(self) -> str:
+        """Ground the LLM in live store data so answers are factual."""
+        start = datetime.datetime.now().replace(
+            hour=0, minute=0, second=0, microsecond=0).timestamp()
+        sales = self.db.sales_total_since(start)
+        products = self.db.list_products()
+        low = [f"{p['name']} ({p['stock']} left)"
+               for p in products if p["stock"] < 10][:8]
+        counts = self.db.pending_counts()
+        state = "ONLINE" if self.net.online else "OFFLINE"
+        last = self.db.get_kv("last_sync_ts")
+        last_s = ("never" if not last else
+                  datetime.datetime.fromtimestamp(float(last)).strftime("%H:%M:%S"))
+        return (
+            f"You are the assistant for OfflinePOS terminal {self.terminal_id}, "
+            "an offline-first point-of-sale. Answer concisely (2-3 sentences), "
+            "as a helpful store assistant.\n"
+            f"Live store context: today's sales ${sales:.2f} (local data); "
+            f"{len(products)} products; "
+            f"low stock: {', '.join(low) if low else 'none'}; "
+            f"sync state {state}, {sum(counts.values())} change(s) pending, "
+            f"last sync {last_s}.\n"
+            "If asked about something outside this data, say what you don't "
+            "know rather than inventing numbers."
+        )
 
     # -- offline intents ------------------------------------------------------------
     def _answer_offline(self, q: str) -> str:

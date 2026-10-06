@@ -77,6 +77,24 @@ File mode works everywhere and doubles as an audit trail. Network mode
 sends ESC/POS to a thermal printer and falls back to a file if the
 printer is unreachable — it never crashes a sale.
 
+Receipts print SUBTOTAL / TAX / TOTAL. Tax rates come from
+`catalog/products.csv` (`tax_rate` column, percent, exclusive of price).
+
+## Chatbot LLM (optional)
+
+The Assistant tab answers from local data when offline. Online, it can
+call a real LLM (OpenAI-compatible) — set these to enable it:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `OFFLINEPOS_LLM_API_KEY` | — | required; without it the bot stays on offline intents |
+| `OFFLINEPOS_LLM_BASE_URL` | `https://api.openai.com/v1` | any OpenAI-compatible endpoint, e.g. `http://localhost:11434/v1` for local Ollama |
+| `OFFLINEPOS_LLM_MODEL` | `gpt-4o-mini` | model name |
+| `OFFLINEPOS_LLM_TIMEOUT` | `20` | seconds per request |
+
+Any failure (no key, timeout, bad response) falls back to offline intents
+— the terminal never blocks on the network.
+
 ## API quick reference
 
 - `GET /api/products`, `POST /api/cart/checkout`
