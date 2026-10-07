@@ -93,7 +93,7 @@ def s1():
         assert rep.ok and rep.pushed_txns == 1 and rep.retries == 0
         assert central.txn_count() == 1
         assert central.get_product("W1")["stock"] == 18
-        return (f"sale total=${rcpt['sale']['total']:.2f}, local stock 20->18 while offline, "
+        return (f"sale total=₹{rcpt['sale']['total']:.2f}, local stock 20->18 while offline, "
                 f"sync pushed 1 txn, central stock=18, central txns=1")
     finally:
         a.close()
@@ -121,7 +121,7 @@ def s2():
         assert price == 12.0, f"newer write must win, got {price}"
         n_conf = len(b.db.list_conflicts())
         assert n_conf >= 1, "losing/overwriting write must be logged"
-        return (f"A set $11 (older), B set $12 (newer); central price=${price:.2f}; "
+        return (f"A set ₹11 (older), B set ₹12 (newer); central price=₹{price:.2f}; "
                 f"conflicts logged on B: {n_conf} "
                 f"(resolution: {b.db.list_conflicts()[0]['resolution']})")
     finally:
@@ -224,7 +224,7 @@ def s6():
         stock = e.ask("stock of Widget")
         sync = e.ask("sync status")
         huh = e.ask("blargh zzz")
-        assert "$20.00" in sales, sales
+        assert "₹20.00" in sales, sales
         assert "18" in stock, stock
         assert "OFFLINE" in sync and "pending" in sync, sync
         assert "offline" in huh.lower(), huh
@@ -257,8 +257,8 @@ def s7():
         price = central.get_product("W7")["price"]
         assert price == 30.0, f"skewed newer ts wins LWW, got {price}"
         assert len(b.db.list_conflicts()) >= 1
-        return (f"T-B clock +5000s: its $30 write carried the newer timestamp and won "
-                f"LWW (central=${price:.2f}); conflict logged for manual review "
+        return (f"T-B clock +5000s: its ₹30 write carried the newer timestamp and won "
+                f"LWW (central=₹{price:.2f}); conflict logged for manual review "
                 f"-> '{b.db.list_conflicts()[0]['resolution']}' (known limitation)")
     finally:
         a.close(); b.close()
@@ -301,7 +301,7 @@ def s9():
     sale = {"txn_id": "abc123def456", "total": 45.50,
             "items": [["W1", 2, 10.0], ["G1", 1, 25.5]]}
     text = format_text_receipt(sale, "COUNTER-1")
-    assert "TOTAL" in text and "$45.50" in text and "abc123de" in text
+    assert "TOTAL" in text and "₹45.50" in text and "abc123de" in text
     assert max(len(l) for l in text.splitlines()) <= 42, "42-column format"
     # file backend
     pr = ReceiptPrinter(mode="file", receipt_dir=os.path.join(tmp, "rcpts"))
@@ -313,7 +313,7 @@ def s9():
     r2 = pr2.print_receipt(sale, "COUNTER-1")
     assert r2["ok"] and "file" in r2["via"] and os.path.exists(r2["path"]), \
         "unreachable printer must fall back to file, never raise"
-    return (f"42-col receipt OK (total $45.50); file backend wrote {r['path']}; "
+    return (f"42-col receipt OK (total ₹45.50); file backend wrote {r['path']}; "
             f"unreachable network printer fell back to file, no exception")
 
 
@@ -321,10 +321,10 @@ def s9():
 @scenario("S10: product catalog + barcode lookup")
 def s10():
     catalog = load_catalog()
-    assert len(catalog) == 6, f"expected 6 products, got {len(catalog)}"
+    assert len(catalog) == 14, f"expected 14 products, got {len(catalog)}"
     for c in catalog:
         assert ean13_is_valid(c["barcode"]), f"bad EAN-13: {c['barcode']}"
-    assert len({c["barcode"] for c in catalog}) == 6, "barcodes must be unique"
+    assert len({c["barcode"] for c in catalog}) == 14, "barcodes must be unique"
 
     tmp, central = make_env()
     t = make_terminal("T-SCAN", tmp, central)
@@ -361,16 +361,16 @@ def s11():
         assert sale["subtotal"] == 25.0, sale
         assert sale["tax_total"] == 3.7, sale
         assert sale["total"] == 28.7, sale
-        assert "SUBTOTAL: $25.00" in rcpt["text"], rcpt["text"]
-        assert "TAX: $3.70" in rcpt["text"], rcpt["text"]
-        assert "TOTAL: $28.70" in rcpt["text"], rcpt["text"]
+        assert "SUBTOTAL: ₹25.00" in rcpt["text"], rcpt["text"]
+        assert "TAX: ₹3.70" in rcpt["text"], rcpt["text"]
+        assert "TOTAL: ₹28.70" in rcpt["text"], rcpt["text"]
         # persisted breakdown columns
         row = a.db._conn().execute(
             "SELECT subtotal, tax_total, total FROM transactions").fetchone()
         assert (row["subtotal"], row["tax_total"], row["total"]) == (25.0, 3.7, 28.7)
         # printer path shows the tax lines too
         text = format_text_receipt(sale, "T-A")
-        assert "TAX" in text and "$28.70" in text, text
+        assert "TAX" in text and "₹28.70" in text, text
         # sync round-trip keeps the taxed total intact
         central.seed_product("W1", "Widget", 10.0, 20, tax_rate=18.0)
         central.seed_product("B1", "Bolt", 2.0, 30, tax_rate=5.0)
@@ -394,8 +394,8 @@ def s11():
         assert ldb.get_product("L1")["tax_rate"] == 0.0
         sale2 = ldb.create_sale([("L1", 1)], "T-X")
         assert sale2["total"] == 5.0 and sale2["tax_total"] == 0.0, sale2
-        return ("2x Widget@18% + 1x Bolt@5% + 1x tax-free: subtotal $25.00, "
-                "tax $3.70, total $28.70; breakdown persisted, printed, and "
+        return ("2x Widget@18% + 1x Bolt@5% + 1x tax-free: subtotal ₹25.00, "
+                "tax ₹3.70, total ₹28.70; breakdown persisted, printed, and "
                 "synced; pre-tax DBs migrate cleanly with 0% default")
     finally:
         a.close()
@@ -450,13 +450,13 @@ def s12():
         _FakeLLM.mode = "error"
         e.scan("W9", 1); e.checkout()
         fb = e.ask("total sales today")
-        assert "$10.00" in fb, fb
+        assert "₹10.00" in fb, fb
         # no key configured -> offline intents, and no HTTP attempt at all
         del os.environ["OFFLINEPOS_LLM_API_KEY"]
         _FakeLLM.mode = "ok"
         n = len(_FakeLLM.seen)
         fb2 = e.ask("total sales today")
-        assert "$10.00" in fb2 and len(_FakeLLM.seen) == n, fb2
+        assert "₹10.00" in fb2 and len(_FakeLLM.seen) == n, fb2
         return ("online LLM answered through a fake OpenAI-compatible server; "
                 "request carried model + store-context system prompt; HTTP 500 "
                 "fell back to offline intents; missing key made zero HTTP calls")

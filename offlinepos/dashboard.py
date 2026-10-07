@@ -23,7 +23,7 @@ def render_dashboard(local_db, terminal_id: str, net) -> str:
     ]
     for p in products:
         lines.append(f"  {p['product_id']:8} {p['name'][:20]:20} "
-                     f"stock={p['stock']:4} price=${p['price']:.2f}")
+                     f"stock={p['stock']:4} price=₹{p['price']:.2f}")
     if conflicts:
         lines.append("recent conflicts:")
         for c in conflicts[-3:]:

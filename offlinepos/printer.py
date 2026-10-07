@@ -48,13 +48,13 @@ def format_text_receipt(sale: dict, terminal_id: str) -> str:
     for line in sale["items"]:
         pid, qty, price = line[0], line[1], line[2]
         left = f"{pid} x{qty}"
-        right = f"${qty * price:.2f}"
+        right = f"₹{qty * price:.2f}"
         lines.append(f"{left:<{WIDTH - len(right)}}{right}")
-        lines.append(f"  @ ${price:.2f}")
+        lines.append(f"  @ ₹{price:.2f}")
     lines += ["-" * WIDTH,
-              f"{'SUBTOTAL':<{WIDTH - 8}}${subtotal:.2f}",
-              f"{_tax_label(sale):<{WIDTH - 8}}${tax_total:.2f}",
-              f"{'TOTAL':<{WIDTH - 8}}${sale['total']:.2f}",
+              f"{'SUBTOTAL':<{WIDTH - 8}}₹{subtotal:.2f}",
+              f"{_tax_label(sale):<{WIDTH - 8}}₹{tax_total:.2f}",
+              f"{'TOTAL':<{WIDTH - 8}}₹{sale['total']:.2f}",
               f"txn {sale['txn_id'][:8]}",
               "Stored locally - syncs when online".center(WIDTH)]
     return "\n".join(lines) + "\n"
@@ -71,12 +71,12 @@ def _escpos_bytes(sale: dict, terminal_id: str) -> bytes:
     for line in sale["items"]:
         pid, qty, price = line[0], line[1], line[2]
         left = f"{pid} x{qty}"
-        right = f"${qty * price:.2f}"
+        right = f"Rs.{qty * price:.2f}"
         out += f"{left:<{WIDTH - len(right)}}{right}\n".encode("cp437", "replace")
     out += ALIGN_CENTER + BOLD_ON
-    out += f"SUBTOTAL ${subtotal:.2f}\n".encode("cp437", "replace")
-    out += f"{_tax_label(sale)} ${tax_total:.2f}\n".encode("cp437", "replace")
-    out += f"TOTAL ${sale['total']:.2f}\n".encode("cp437", "replace")
+    out += f"SUBTOTAL Rs.{subtotal:.2f}\n".encode("cp437", "replace")
+    out += f"{_tax_label(sale)} Rs.{tax_total:.2f}\n".encode("cp437", "replace")
+    out += f"TOTAL Rs.{sale['total']:.2f}\n".encode("cp437", "replace")
     out += BOLD_OFF + LF + LF + CUT
     return bytes(out)
 

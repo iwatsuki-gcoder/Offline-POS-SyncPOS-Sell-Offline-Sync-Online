@@ -112,12 +112,12 @@ class Terminal:
             pid, qty, price = line[0], line[1], line[2]
             tax_rate = line[3] if len(line) > 3 else 0.0
             line_tax = line[4] if len(line) > 4 else 0.0
-            lines.append(f"{pid} x{qty} @ ${price:.2f} = ${qty * price:.2f}")
+            lines.append(f"{pid} x{qty} @ ₹{price:.2f} = ₹{qty * price:.2f}")
             if line_tax:
-                lines.append(f"  incl. tax {tax_rate:g}% = ${line_tax:.2f}")
-        lines.append(f"SUBTOTAL: ${subtotal:.2f}")
-        lines.append(f"TAX: ${tax_total:.2f}")
-        lines.append(f"TOTAL: ${sale['total']:.2f}")
+                lines.append(f"  incl. tax {tax_rate:g}% = ₹{line_tax:.2f}")
+        lines.append(f"SUBTOTAL: ₹{subtotal:.2f}")
+        lines.append(f"TAX: ₹{tax_total:.2f}")
+        lines.append(f"TOTAL: ₹{sale['total']:.2f}")
         lines.append(f"txn: {sale['txn_id'][:8]}  idem: {sale['idempotency_key'][:16]}...")
         return {"sale": sale, "text": "\n".join(lines)}
 

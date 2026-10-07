@@ -75,7 +75,7 @@ def main():
         b.set_online(True)
         a.sync_now()
         b.sync_now()
-        print(f"Central Gadget price: ${central.get_product('G1')['price']:.2f} "
+        print(f"Central Gadget price: ₹{central.get_product('G1')['price']:.2f} "
               f"(newer write won last-write-wins)")
         print(f"Conflicts logged for review: {len(b.db.list_conflicts())}")
 

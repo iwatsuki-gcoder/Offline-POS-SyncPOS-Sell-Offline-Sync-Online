@@ -120,9 +120,9 @@
       </div>
       <div class="card"><h3>Cart</h3>
         <div id="cartLines"></div>
-        <div class="total" style="font-weight:normal;font-size:14px"><span>Subtotal</span><span id="cartSubtotal">$0.00</span></div>
-        <div class="total" style="font-weight:normal;font-size:14px"><span>Est. tax</span><span id="cartTax">$0.00</span></div>
-        <div class="total"><span>Total</span><span id="cartTotal">$0.00</span></div>
+        <div class="total" style="font-weight:normal;font-size:14px"><span>Subtotal</span><span id="cartSubtotal">₹0.00</span></div>
+        <div class="total" style="font-weight:normal;font-size:14px"><span>Est. tax</span><span id="cartTax">₹0.00</span></div>
+        <div class="total"><span>Total</span><span id="cartTotal">₹0.00</span></div>
         <button class="btn" id="chargeBtn" disabled>Charge</button>
         <p class="note">Charge works offline — the sale is stored locally and syncs later.</p>
       </div>
@@ -299,7 +299,7 @@ function renderProds(f=''){
   products.filter(p=>(p.name+p.product_id).toLowerCase().includes(f.toLowerCase())).forEach(p=>{
     const d=document.createElement('div');
     d.className='prod'+(p.stock===0?' out':'');
-    d.innerHTML=`<div class="nm">${p.name}</div><div class="pr">$${p.price.toFixed(2)}</div><div class="st">${p.stock} in stock${p.barcode?'<br>⛁ '+p.barcode:''}</div>`;
+    d.innerHTML=`<div class="nm">${p.name}</div><div class="pr">₹${p.price.toFixed(2)}</div><div class="st">${p.stock} in stock${p.barcode?'<br>⛁ '+p.barcode:''}</div>`;
     if(p.stock>0) d.onclick=()=>{cart[p.product_id]=(cart[p.product_id]||0)+1;renderCart();};
     g.appendChild(d);
   });
@@ -376,15 +376,15 @@ function renderCart(){
     const rate=p.tax_rate||0;
     sub+=p.price*q; tax+=Math.round(p.price*q*rate)/100; n++;
     const row=document.createElement('div'); row.className='cart-line';
-    row.innerHTML=`<span class="n">${p.name}</span><button class="step" data-a="-">−</button><span class="qty">${q}</span><button class="step" data-a="+">+</button><span>$${(p.price*q).toFixed(2)}</span>`;
+    row.innerHTML=`<span class="n">${p.name}</span><button class="step" data-a="-">−</button><span class="qty">${q}</span><button class="step" data-a="+">+</button><span>₹${(p.price*q).toFixed(2)}</span>`;
     row.querySelector('[data-a="-"]').onclick=()=>{cart[id]--;if(cart[id]<=0)delete cart[id];renderCart();};
     row.querySelector('[data-a="+"]').onclick=()=>{cart[id]++;renderCart();};
     box.appendChild(row);
   }
   if(!n) box.innerHTML='<p style="color:var(--muted);font-size:14px">Tap a product to add it.</p>';
-  $('cartSubtotal').textContent='$'+sub.toFixed(2);
-  $('cartTax').textContent='$'+tax.toFixed(2);
-  $('cartTotal').textContent='$'+(sub+tax).toFixed(2);
+  $('cartSubtotal').textContent='₹'+sub.toFixed(2);
+  $('cartTax').textContent='₹'+tax.toFixed(2);
+  $('cartTotal').textContent='₹'+(sub+tax).toFixed(2);
   $('chargeBtn').disabled=!n;
 }
 $('chargeBtn').addEventListener('click',async()=>{
@@ -393,10 +393,10 @@ $('chargeBtn').addEventListener('click',async()=>{
     const r=await api('/api/cart/checkout',{method:'POST',body:JSON.stringify({items})});
     lastSale=r.sale; $('printNote').textContent='';
     $('rcptTerm').textContent=terminal;
-    $('rcptLines').innerHTML=r.sale.items.map(([pid,q,pr])=>`<div class="row"><span>${pid} x${q}</span><span>$${(q*pr).toFixed(2)}</span></div>`).join('');
-    $('rcptSubtotal').textContent='$'+(r.sale.subtotal??r.sale.total).toFixed(2);
-    $('rcptTax').textContent='$'+(r.sale.tax_total??0).toFixed(2);
-    $('rcptTotal').textContent='$'+r.sale.total.toFixed(2);
+    $('rcptLines').innerHTML=r.sale.items.map(([pid,q,pr])=>`<div class="row"><span>${pid} x${q}</span><span>₹${(q*pr).toFixed(2)}</span></div>`).join('');
+    $('rcptSubtotal').textContent='₹'+(r.sale.subtotal??r.sale.total).toFixed(2);
+    $('rcptTax').textContent='₹'+(r.sale.tax_total??0).toFixed(2);
+    $('rcptTotal').textContent='₹'+r.sale.total.toFixed(2);
     $('rcptTxn').textContent=r.sale.txn_id.slice(0,8);
     $('receiptModal').classList.add('show');
     cart={}; renderCart(); loadProducts(); refreshDash();
@@ -414,10 +414,10 @@ async function refreshDash(){
     $('cfBody').innerHTML=c.conflicts.length?c.conflicts.map(x=>{
       const w=JSON.parse(x.remote_value), l=JSON.parse(x.local_value);
       const wp=w.price!==undefined?w.price:(w.stock!==undefined?w.stock:''), lp=l.price!==undefined?l.price:(l.stock!==undefined?l.stock:'');
-      return `<tr><td>${x.entity_id}</td><td>$${wp}</td><td>$${lp}</td><td><span class="badge b-amber">${x.resolution}</span></td></tr>`;
+      return `<tr><td>${x.entity_id}</td><td>₹${wp}</td><td>₹${lp}</td><td><span class="badge b-amber">${x.resolution}</span></td></tr>`;
     }).join(''):'<tr><td colspan="4" style="color:var(--muted)">No conflicts.</td></tr>';
     const h=await api('/api/health');
-    $('dashBody').innerHTML=h.products.map(p=>`<tr><td>${p.product_id}</td><td>${p.name}</td><td>$${p.price.toFixed(2)}</td><td>${(p.tax_rate||0)}%</td><td>${p.stock}</td><td>${p.updated_by}</td></tr>`).join('');
+    $('dashBody').innerHTML=h.products.map(p=>`<tr><td>${p.product_id}</td><td>${p.name}</td><td>₹${p.price.toFixed(2)}</td><td>${(p.tax_rate||0)}%</td><td>${p.stock}</td><td>${p.updated_by}</td></tr>`).join('');
   }catch(e){/* server may be starting */}
 }
 function setOnlinePillOnly(v){
@@ -447,7 +447,7 @@ $('printBtn').addEventListener('click',async()=>{
 $('conflictBtn').addEventListener('click',async()=>{
   try{
     const r=await api('/api/demo/conflict',{method:'POST'});
-    $('syncNote').textContent=`Conflict demo: central price $${r.central_price.toFixed(2)} — ${r.note}.`;
+    $('syncNote').textContent=`Conflict demo: central price ₹${r.central_price.toFixed(2)} — ${r.note}.`;
     refreshDash();
   }catch(e){if(e.message!=='unauthorized')toast('Demo failed: '+e.message);}
 });

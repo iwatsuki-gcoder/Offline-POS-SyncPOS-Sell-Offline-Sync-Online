@@ -68,7 +68,7 @@ class Chatbot:
             f"You are the assistant for SwiftBill terminal {self.terminal_id}, "
             "an offline-first point-of-sale. Answer concisely (2-3 sentences), "
             "as a helpful store assistant.\n"
-            f"Live store context: today's sales ${sales:.2f} (local data); "
+            f"Live store context: today's sales ₹{sales:.2f} (local data); "
             f"{len(products)} products; "
             f"low stock: {', '.join(low) if low else 'none'}; "
             f"sync state {state}, {sum(counts.values())} change(s) pending, "
@@ -89,7 +89,7 @@ class Chatbot:
             start = datetime.datetime.now().replace(
                 hour=0, minute=0, second=0, microsecond=0).timestamp()
             total = self.db.sales_total_since(start)
-            return f"Today's sales on {self.terminal_id}: ${total:.2f} (offline data)."
+            return f"Today's sales on {self.terminal_id}: ₹{total:.2f} (offline data)."
 
         m = re.search(r"stock of ([\w\- ]+?)(?:\?|$)", low)
         if m or "stock" in low:
@@ -101,9 +101,9 @@ class Chatbot:
                            None)
                 if hit:
                     return (f"{hit['name']} ({hit['product_id']}): "
-                            f"{hit['stock']} in stock @ ${hit['price']:.2f}.")
+                            f"{hit['stock']} in stock @ ₹{hit['price']:.2f}.")
                 return f"No product matching '{name}' found locally."
-            lines = [f"{p['product_id']}: {p['stock']} @ ${p['price']:.2f}"
+            lines = [f"{p['product_id']}: {p['stock']} @ ₹{p['price']:.2f}"
                      for p in products]
             return "Stock levels:\n" + "\n".join(lines)
 
