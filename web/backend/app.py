@@ -243,6 +243,28 @@ def api_print(body: PrintIn, user: dict = Depends(current_user)):
     return result
 
 
+@app.get("/api/receipt/download")
+def api_receipt_download(terminal: str = Query("COUNTER-1"),
+                         txn_id: str = Query(...),
+                         user: dict = Depends(current_user)):
+    """Download a previously printed receipt as a .txt file.
+
+    Works on hosting without disk/shell access (e.g. Render free tier):
+    the file is streamed to the browser instead of read off the server.
+    """
+    import re
+    get_terminal(terminal)  # validate terminal id
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", txn_id):
+        raise HTTPException(400, "bad txn_id")
+    assert printer is not None
+    fname = f"receipt_{txn_id[:8]}_{terminal}.txt"
+    path = Path(printer.receipt_dir) / fname
+    if not path.is_file():
+        raise HTTPException(404, "receipt not found — print it first")
+    return FileResponse(path, media_type="text/plain; charset=utf-8",
+                        filename=fname)
+
+
 # ---------------------------------------------------------------- sync
 @app.get("/api/sync/status")
 def api_sync_status(terminal: str = Query("COUNTER-1"),
