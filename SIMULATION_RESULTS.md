@@ -1,32 +1,33 @@
 # SwiftBill Simulation Results
 
-Ran 13 scenarios, **13 passed**, 0 failed.
+Ran 14 scenarios, **14 passed**, 0 failed.
 
 | Scenario | Result | Time (s) |
 |---|---|---|
-| S1: offline sale, then sync | PASS | 0.01 |
-| S2: price conflict -> last-write-wins | PASS | 0.01 |
-| S3: concurrent offline sales -> delta merge | PASS | 0.01 |
-| S4: flaky link -> backoff + exactly-once | PASS | 0.41 |
+| S1: offline sale, then sync | PASS | 0.02 |
+| S2: price conflict -> last-write-wins | PASS | 0.02 |
+| S3: concurrent offline sales -> delta merge | PASS | 0.05 |
+| S4: flaky link -> backoff + exactly-once | PASS | 0.47 |
 | S5: billing preempts saturated background lane | PASS | 2.01 |
 | S6: chatbot answers offline | PASS | 0.01 |
-| S7: clock skew -> LWW still decides, conflict logged | PASS | 0.01 |
-| S8: login, roles, sessions | PASS | 0.48 |
+| S7: clock skew -> LWW still decides, conflict logged | PASS | 0.02 |
+| S8: login, roles, sessions | PASS | 0.57 |
 | S9: receipt printing (file + printer fallback) | PASS | 0.01 |
 | S10: product catalog + barcode lookup | PASS | 0.01 |
 | S11: tax calculation on checkout | PASS | 0.02 |
 | S12: real LLM chatbot with graceful fallback | PASS | 0.54 |
-| S13: real connectivity auto-detect | PASS | 0.6 |
+| S13: real connectivity auto-detect | PASS | 0.4 |
+| S14: conflict review -> mark as reviewed | PASS | 0.03 |
 
 ## Details
 
 ### S1: offline sale, then sync - PASS
 
-sale total=$20.00, local stock 20->18 while offline, sync pushed 1 txn, central stock=18, central txns=1
+sale total=₹20.00, local stock 20->18 while offline, sync pushed 1 txn, central stock=18, central txns=1
 
 ### S2: price conflict -> last-write-wins - PASS
 
-A set $11 (older), B set $12 (newer); central price=$12.00; conflicts logged on B: 1 (resolution: last-write-wins (incoming newer))
+A set ₹11 (older), B set ₹12 (newer); central price=₹12.00; conflicts logged on B: 1 (resolution: last-write-wins (incoming newer))
 
 ### S3: concurrent offline sales -> delta merge - PASS
 
@@ -42,11 +43,11 @@ background lane blocked ~2s; checkout completed in 0.001s via dedicated billing 
 
 ### S6: chatbot answers offline - PASS
 
-offline answers OK: sales='Today's sales on T-E: $20.00 (offline data).', stock='Widget (W6): 18 in stock @ $10.00.', sync='Sync status [OFFLINE]: 2 pending (txns=1, deltas=1, updates=0), last sync: never.'; mode followed net OFFLINE->ONLINE
+offline answers OK: sales='Today's sales on T-E: ₹20.00 (offline data).', stock='Widget (W6): 18 in stock @ ₹10.00.', sync='Sync status [OFFLINE]: 2 pending (txns=1, deltas=1, updates=0), last sync: never.'; mode followed net OFFLINE->ONLINE
 
 ### S7: clock skew -> LWW still decides, conflict logged - PASS
 
-T-B clock +5000s: its $30 write carried the newer timestamp and won LWW (central=$30.00); conflict logged for manual review -> 'last-write-wins (incoming newer)' (known limitation)
+T-B clock +5000s: its ₹30 write carried the newer timestamp and won LWW (central=₹30.00); conflict logged for manual review -> 'last-write-wins (incoming newer)' (known limitation)
 
 ### S8: login, roles, sessions - PASS
 
@@ -54,7 +55,7 @@ manager/cashier logins OK, bad password + unknown user rejected, session create/
 
 ### S9: receipt printing (file + printer fallback) - PASS
 
-42-col receipt OK (total $45.50); file backend wrote /tmp/offlinepos_print_eiv1ktb_/rcpts/receipt_abc123de_COUNTER-1.txt; unreachable network printer fell back to file, no exception
+42-col receipt OK (total ₹45.50); file backend wrote /tmp/offlinepos_print_sk4m5d1b/rcpts/receipt_abc123de_COUNTER-1.txt; unreachable network printer fell back to file, no exception
 
 ### S10: product catalog + barcode lookup - PASS
 
@@ -62,7 +63,7 @@ manager/cashier logins OK, bad password + unknown user rejected, session create/
 
 ### S11: tax calculation on checkout - PASS
 
-2x Widget@18% + 1x Bolt@5% + 1x tax-free: subtotal $25.00, tax $3.70, total $28.70; breakdown persisted, printed, and synced; pre-tax DBs migrate cleanly with 0% default
+2x Widget@18% + 1x Bolt@5% + 1x tax-free: subtotal ₹25.00, tax ₹3.70, total ₹28.70; breakdown persisted, printed, and synced; pre-tax DBs migrate cleanly with 0% default
 
 ### S12: real LLM chatbot with graceful fallback - PASS
 
@@ -71,4 +72,8 @@ online LLM answered through a fake OpenAI-compatible server; request carried mod
 ### S13: real connectivity auto-detect - PASS
 
 probe True vs local server / False vs dead port; auto-detect thread drove OFFLINE->ONLINE->OFFLINE on the shared state machine
+
+### S14: conflict review -> mark as reviewed - PASS
+
+1 conflict(s) logged; marked f0984335 as reviewed; unreviewed=0
 

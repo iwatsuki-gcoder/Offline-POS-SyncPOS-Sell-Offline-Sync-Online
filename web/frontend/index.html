@@ -143,8 +143,8 @@
         <p class="note" id="syncNote"></p>
       </div>
       <div class="card"><h3>Conflicts needing review <span class="badge b-amber" id="cfCount">0</span></h3>
-        <table><thead><tr><th>Product</th><th>Kept</th><th>Overwritten</th><th>Resolution</th></tr></thead>
-        <tbody id="cfBody"><tr><td colspan="4" style="color:var(--muted)">No conflicts.</td></tr></tbody></table>
+        <table><thead><tr><th>Product</th><th>Kept</th><th>Overwritten</th><th>Resolution</th><th>Reviewed</th></tr></thead>
+        <tbody id="cfBody"><tr><td colspan="5" style="color:var(--muted)">No conflicts.</td></tr></tbody></table>
       </div>
     </div>
     <div class="card" style="margin-top:16px"><h3>Products</h3>
@@ -411,18 +411,29 @@ async function refreshDash(){
     $('stTx').textContent=s.pending.txns; $('stDe').textContent=s.pending.deltas; $('stUp').textContent=s.pending.updates;
     $('stLa').textContent=s.last_sync_ts?new Date(+s.last_sync_ts*1000).toLocaleTimeString():'never';
     const c=await api('/api/conflicts');
-    $('cfCount').textContent=c.conflicts.length;
+    const unrev=c.conflicts.filter(x=>!x.reviewed);
+    $('cfCount').textContent=unrev.length;
     $('cfBody').innerHTML=c.conflicts.length?c.conflicts.map(x=>{
       const w=JSON.parse(x.remote_value), l=JSON.parse(x.local_value);
       const wp=w.price!==undefined?w.price:(w.stock!==undefined?w.stock:''), lp=l.price!==undefined?l.price:(l.stock!==undefined?l.stock:'');
-      return `<tr><td>${x.entity_id}</td><td>₹${wp}</td><td>₹${lp}</td><td><span class="badge b-amber">${x.resolution}</span></td></tr>`;
-    }).join(''):'<tr><td colspan="4" style="color:var(--muted)">No conflicts.</td></tr>';
+      const dim=x.reviewed?' style="opacity:.5"':'';
+      return `<tr${dim}><td>${x.entity_id}</td><td>₹${wp}</td><td>₹${lp}</td><td><span class="badge b-amber">${x.resolution}</span></td><td><input type="checkbox"${x.reviewed?' checked':''} onchange="toggleReview('${x.conflict_id}',this)" title="Mark as reviewed"></td></tr>`;
+    }).join(''):'<tr><td colspan="5" style="color:var(--muted)">No conflicts.</td></tr>';
     const h=await api('/api/health');
     $('dashBody').innerHTML=h.products.map(p=>`<tr><td>${p.product_id}</td><td>${p.name}</td><td>₹${p.price.toFixed(2)}</td><td>${(p.tax_rate||0)}%</td><td>${p.stock}</td><td>${p.updated_by}</td></tr>`).join('');
   }catch(e){/* server may be starting */}
 }
-function setOnlinePillOnly(v){
-  online=v; const p=$('netPill');
+// manager marks a conflict as reviewed
+async function toggleReview(conflict_id,el){
+  try{
+    await api('/api/conflicts/review',{method:'POST',body:JSON.stringify({conflict_id})});
+    refreshDash();
+  }catch(e){
+    el.checked=!el.checked;
+    if(e.message!=='unauthorized')toast('Review failed: '+e.message);
+  }
+}
+function setOnlinePillOnly(v){  online=v; const p=$('netPill');
   p.textContent=v?'ONLINE':'OFFLINE'; p.className='pill '+(v?'online':'offline');
   for(const id of ['modeBadge','modeBadge2']){
     const el=$(id); el.classList.toggle('on',v);

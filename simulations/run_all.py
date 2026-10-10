@@ -14,6 +14,7 @@ Twelve scenarios covering the OS + DBMS concepts in the project:
   S11 tax calculation (per-product rates, ACID tax math, receipts, migration)
   S12 real LLM chatbot (OpenAI-compatible call, store-context prompt, fallback)
   S13 connectivity auto-detect (socket probe drives the shared state machine)
+  S14 conflict review (manager marks a logged conflict as reviewed)
 
 Run:  python3 simulations/run_all.py
 Writes: SIMULATION_RESULTS.md
@@ -523,6 +524,39 @@ def s13():
             pass
 
 
+# ---------------------------------------------------------------- S14
+@scenario("S14: conflict review -> mark as reviewed")
+def s14():
+    tmp, central = make_env()
+    a = make_terminal("T-A", tmp, central)
+    b = make_terminal("T-B", tmp, central)
+    try:
+        for t in (a, b):
+            t.seed_catalog([("W2", "Gadget", 10.0, 50)])
+            t.set_online(False)
+        central.seed_product("W2", "Gadget", 10.0, 50)
+        base = time.time()
+        a.db.update_product_price("W2", 11.0, "T-A", ts=base + 1)
+        b.db.update_product_price("W2", 12.0, "T-B", ts=base + 2)
+        a.set_online(True)
+        b.set_online(True)
+        a.sync_now()
+        b.sync_now()
+        conflicts = b.db.list_conflicts()
+        assert conflicts, "a conflict must be logged before it can be reviewed"
+        assert b.db.unreviewed_conflict_count() == len(conflicts)
+        cid = conflicts[0]["conflict_id"]
+        assert b.db.mark_conflict_reviewed(cid) is True
+        assert b.db.mark_conflict_reviewed("does-not-exist") is False
+        assert b.db.unreviewed_conflict_count() == len(conflicts) - 1
+        assert all(c["reviewed"] for c in b.db.list_conflicts()
+                   if c["conflict_id"] == cid)
+        return (f"{len(conflicts)} conflict(s) logged; marked {cid[:8]} as "
+                f"reviewed; unreviewed={b.db.unreviewed_conflict_count()}")
+    finally:
+        a.close(); b.close()
+
+
 def write_report():
     passed = sum(1 for r in RESULTS if r["passed"])
     lines = ["# SwiftBill Simulation Results",
@@ -549,7 +583,7 @@ def write_report():
 
 
 if __name__ == "__main__":
-    for fn in (s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13):
+    for fn in (s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, s14):
         fn()
     ok = write_report()
     sys.exit(0 if ok else 1)

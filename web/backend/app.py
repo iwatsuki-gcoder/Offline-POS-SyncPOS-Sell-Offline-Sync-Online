@@ -152,6 +152,10 @@ class PriceIn(BaseModel):
     price: float = Field(gt=0)
 
 
+class ReviewIn(BaseModel):
+    conflict_id: str = Field(min_length=1)
+
+
 class LoginIn(BaseModel):
     username: str = Field(min_length=1)
     password: str = Field(min_length=1)
@@ -314,6 +318,17 @@ def api_net_status(user: dict = Depends(current_user)):
 def api_conflicts(terminal: str = Query("COUNTER-1"),
                   manager: dict = Depends(manager_only)):
     return {"conflicts": get_terminal(terminal).db.list_conflicts()}
+
+
+@app.post("/api/conflicts/review")
+def api_conflicts_review(body: ReviewIn, terminal: str = Query("COUNTER-1"),
+                         manager: dict = Depends(manager_only)):
+    """Manager marks a conflict as reviewed (ADR-001 loser stays logged)."""
+    ok = get_terminal(terminal).db.mark_conflict_reviewed(
+        body.conflict_id.strip())
+    if not ok:
+        raise HTTPException(404, "conflict not found")
+    return {"ok": True}
 
 
 @app.get("/api/health")

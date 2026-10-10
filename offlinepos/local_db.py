@@ -74,7 +74,8 @@ CREATE TABLE IF NOT EXISTS conflicts(
     local_value TEXT,
     remote_value TEXT,
     resolution  TEXT NOT NULL,          -- e.g. 'last-write-wins'
-    resolved_at REAL NOT NULL
+    resolved_at REAL NOT NULL,
+    reviewed    INTEGER NOT NULL DEFAULT 0  -- manager marked as reviewed
 );
 CREATE TABLE IF NOT EXISTS kv(
     key   TEXT PRIMARY KEY,
@@ -104,7 +105,8 @@ class LocalDB:
         # migration: per-product tax rates + sale tax breakdown
         for ddl in ("ALTER TABLE products ADD COLUMN tax_rate REAL NOT NULL DEFAULT 0",
                     "ALTER TABLE transactions ADD COLUMN subtotal REAL NOT NULL DEFAULT 0",
-                    "ALTER TABLE transactions ADD COLUMN tax_total REAL NOT NULL DEFAULT 0"):
+                    "ALTER TABLE transactions ADD COLUMN tax_total REAL NOT NULL DEFAULT 0",
+                    "ALTER TABLE conflicts ADD COLUMN reviewed INTEGER NOT NULL DEFAULT 0"):
             try:
                 init.execute(ddl)
             except sqlite3.OperationalError:
@@ -341,6 +343,23 @@ class LocalDB:
             d["remote_value"] = json.loads(d["remote_value"])
             out.append(d)
         return out
+
+    def mark_conflict_reviewed(self, conflict_id: str) -> bool:
+        """Manager marks a conflict as reviewed. Returns True if it existed."""
+        with self.write_txn() as c:
+            cur = c.execute("UPDATE conflicts SET reviewed=1 WHERE conflict_id=?",
+                            (conflict_id,))
+            if cur.rowcount:
+                c.execute(
+                    "INSERT INTO audit_log(ts,actor,action,details) VALUES(?,?,?,?)",
+                    (self.now(), "manager", "conflict_reviewed",
+                     json.dumps({"conflict_id": conflict_id})))
+            return cur.rowcount > 0
+
+    def unreviewed_conflict_count(self) -> int:
+        row = self._conn().execute(
+            "SELECT COUNT(*) n FROM conflicts WHERE reviewed=0").fetchone()
+        return row["n"]
 
     def set_kv(self, key, value):
         with self.write_txn() as c:
