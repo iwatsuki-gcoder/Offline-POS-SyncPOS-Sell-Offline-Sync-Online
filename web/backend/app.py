@@ -347,7 +347,7 @@ def api_health(terminal: str = Query("COUNTER-1"),
 def api_chat(body: ChatIn, terminal: str = Query("COUNTER-1"),
              user: dict = Depends(current_user)):
     t = get_terminal(terminal)
-    return {"answer": t.ask(body.question), "mode": t.chatbot.mode}
+    return {"answer": t.ask(body.question)}
 
 
 # ---------------------------------------------------------------- demos

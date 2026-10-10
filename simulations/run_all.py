@@ -1,18 +1,17 @@
 """SwiftBill simulation suite.
 
-Twelve scenarios covering the OS + DBMS concepts in the project:
+Thirteen scenarios covering the OS + DBMS concepts in the project:
   S1 offline sale -> sync (delta sync, ACID local sale)
   S2 price conflict -> last-write-wins + conflict log
   S3 concurrent offline sales -> commutative stock-delta merge
   S4 flaky link -> exponential backoff + idempotent exactly-once
   S5 priority scheduling -> billing never waits on background work
-  S6 hybrid chatbot -> offline intent answering
+  S6 chatbot -> offline intent answering
   S7 clock skew -> skewed timestamp wins LWW, conflict logged for review
   S8 login, roles, sessions
   S9 receipt printing (file + ESC/POS, printer-outage fallback)
   S10 barcode catalog (EAN-13 validation, scan lookup, sync carry-over)
   S11 tax calculation (per-product rates, ACID tax math, receipts, migration)
-  S12 real LLM chatbot (OpenAI-compatible call, store-context prompt, fallback)
   S13 connectivity auto-detect (socket probe drives the shared state machine)
   S14 conflict review (manager marks a logged conflict as reviewed)
 
@@ -21,8 +20,6 @@ Writes: SIMULATION_RESULTS.md
 """
 from __future__ import annotations
 
-import http.server
-import json
 import os
 import sqlite3
 import sys
@@ -219,7 +216,7 @@ def s6():
     e = make_terminal("T-E", tmp, central)
     try:
         e.seed_catalog([("W6", "Widget", 10.0, 20)])
-        e.set_online(False)  # offline: no LLM, local intents only
+        e.set_online(False)  # offline: local intents only
         e.scan("W6", 2); e.checkout()
         sales = e.ask("total sales today")
         stock = e.ask("stock of Widget")
@@ -228,12 +225,12 @@ def s6():
         assert "₹20.00" in sales, sales
         assert "18" in stock, stock
         assert "OFFLINE" in sync and "pending" in sync, sync
-        assert "offline" in huh.lower(), huh
-        assert e.chatbot.mode == "offline"
+        assert "didn't understand" in huh.lower(), huh
         e.set_online(True)
-        assert e.chatbot.mode == "online", "bot must follow the shared state machine"
+        sales_on = e.ask("total sales today")
+        assert "₹20.00" in sales_on, sales_on
         return (f"offline answers OK: sales='{sales}', stock='{stock}', "
-                f"sync='{sync}'; mode followed net OFFLINE->ONLINE")
+                f"sync='{sync}'; bot is offline-intent only, no network")
     finally:
         e.close()
 
@@ -402,72 +399,6 @@ def s11():
         a.close()
 
 
-class _FakeLLM(http.server.BaseHTTPRequestHandler):
-    """Minimal OpenAI-compatible /chat/completions stub for S12."""
-    mode = "ok"
-    seen: list = []
-
-    def do_POST(self):
-        length = int(self.headers.get("Content-Length", 0))
-        _FakeLLM.seen.append(json.loads(self.rfile.read(length) or b"{}"))
-        if _FakeLLM.mode == "error":
-            self.send_response(500); self.end_headers(); return
-        payload = json.dumps(
-            {"choices": [{"message": {"content": "LLM: sales look good today"}}]}
-        ).encode()
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(payload)))
-        self.end_headers()
-        self.wfile.write(payload)
-
-    def log_message(self, *args):  # keep test output clean
-        pass
-
-
-# ---------------------------------------------------------------- S12
-@scenario("S12: real LLM chatbot with graceful fallback")
-def s12():
-    tmp, central = make_env()
-    e = make_terminal("T-E", tmp, central)
-    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _FakeLLM)
-    port = srv.server_address[1]
-    threading.Thread(target=srv.serve_forever, daemon=True).start()
-    old_env = dict(os.environ)
-    try:
-        os.environ["OFFLINEPOS_LLM_BASE_URL"] = f"http://127.0.0.1:{port}/v1"
-        os.environ["OFFLINEPOS_LLM_API_KEY"] = "test-key"
-        os.environ["OFFLINEPOS_LLM_MODEL"] = "test-model"
-        e.seed_catalog([("W9", "Widget", 10.0, 20)])
-        e.set_online(True)
-        ans = e.ask("how are sales?")
-        assert ans == "LLM: sales look good today", ans
-        body = _FakeLLM.seen[-1]
-        assert body["model"] == "test-model", body
-        msgs = {m["role"]: m["content"] for m in body["messages"]}
-        assert "SwiftBill terminal T-E" in msgs["system"], msgs["system"]
-        assert "how are sales?" in msgs["user"]
-        # server blows up -> degrade to offline intents, no exception
-        _FakeLLM.mode = "error"
-        e.scan("W9", 1); e.checkout()
-        fb = e.ask("total sales today")
-        assert "₹10.00" in fb, fb
-        # no key configured -> offline intents, and no HTTP attempt at all
-        del os.environ["OFFLINEPOS_LLM_API_KEY"]
-        _FakeLLM.mode = "ok"
-        n = len(_FakeLLM.seen)
-        fb2 = e.ask("total sales today")
-        assert "₹10.00" in fb2 and len(_FakeLLM.seen) == n, fb2
-        return ("online LLM answered through a fake OpenAI-compatible server; "
-                "request carried model + store-context system prompt; HTTP 500 "
-                "fell back to offline intents; missing key made zero HTTP calls")
-    finally:
-        os.environ.clear(); os.environ.update(old_env)
-        _FakeLLM.mode = "ok"
-        srv.shutdown(); srv.server_close()
-        e.close()
-
-
 # ---------------------------------------------------------------- S13
 @scenario("S13: real connectivity auto-detect")
 def s13():
@@ -583,7 +514,7 @@ def write_report():
 
 
 if __name__ == "__main__":
-    for fn in (s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, s14):
+    for fn in (s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s13, s14):
         fn()
     ok = write_report()
     sys.exit(0 if ok else 1)

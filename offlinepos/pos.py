@@ -35,8 +35,6 @@ class Terminal:
         self.chatbot = Chatbot(self.db, self.net, terminal_id)
         self._cart: list[tuple[str, int]] = []
         self._cart_lock = threading.Lock()
-        # chatbot follows the same connectivity state machine as sync
-        self.net.subscribe(lambda state: self.chatbot.on_connectivity(state))
 
     # -- lifecycle -----------------------------------------------------------
     def start(self):

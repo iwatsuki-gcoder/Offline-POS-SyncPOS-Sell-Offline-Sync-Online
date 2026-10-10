@@ -105,7 +105,7 @@
 <nav>
   <button class="active" data-tab="billing">Billing</button>
   <button data-tab="dash">Sync Dashboard</button>
-  <button data-tab="chat">Assistant <span class="modebadge" id="modeBadge">Offline</span></button>
+  <button data-tab="chat">Assistant</button>
 </nav>
 <main>
   <section class="screen active" id="tab-billing">
@@ -154,7 +154,7 @@
   </section>
   <section class="screen" id="tab-chat">
     <div class="card">
-      <h3>Assistant <span class="modebadge" id="modeBadge2">Offline — local intents</span></h3>
+      <h3>Assistant</h3>
       <div class="chat" id="chatBox"><div class="msg bot">Hi! Ask me about sales, stock, or sync. I work fully offline.</div></div>
       <div class="chips">
         <button class="chip" data-q="total sales today">Sales today</button>
@@ -165,7 +165,7 @@
         <input id="chatIn" placeholder="Ask about sales, stock, or sync…">
         <button class="btn" id="sendBtn" style="width:auto;padding:12px 20px">Send</button>
       </div>
-      <p class="note">Online with an API key set → real LLM answers grounded in live store data (ADR-002); otherwise local intents — never an error.</p>
+      <p class="note">Fully offline — answers come from this terminal's local data.</p>
     </div>
   </section>
 </main>
@@ -285,10 +285,6 @@ setInterval(pollNetStatus,10000);
 function setOnline(v){
   online=v; const p=$('netPill');
   p.textContent=v?'ONLINE':'OFFLINE'; p.className='pill '+(v?'online':'offline');
-  for(const id of ['modeBadge','modeBadge2']){
-    const el=$(id); el.classList.toggle('on',v);
-    el.textContent=id==='modeBadge2'?(v?'Online — LLM':'Offline — local intents'):(v?'Online':'Offline');
-  }
 }
 // products + cart
 async function loadProducts(){
@@ -435,10 +431,6 @@ async function toggleReview(conflict_id,el){
 }
 function setOnlinePillOnly(v){  online=v; const p=$('netPill');
   p.textContent=v?'ONLINE':'OFFLINE'; p.className='pill '+(v?'online':'offline');
-  for(const id of ['modeBadge','modeBadge2']){
-    const el=$(id); el.classList.toggle('on',v);
-    el.textContent=id==='modeBadge2'?(v?'Online — LLM':'Offline — local intents'):(v?'Online':'Offline');
-  }
 }
 $('syncBtn').addEventListener('click',async()=>{
   $('syncNote').textContent='Syncing…';
@@ -491,8 +483,6 @@ async function ask(q){
   bubble(q,'user');
   try{
     const r=await api('/api/chat/ask',{method:'POST',body:JSON.stringify({question:q})});
-    const el=$('modeBadge2'); el.classList.toggle('on',r.mode==='online');
-    el.textContent=r.mode==='online'?'Online — LLM':'Offline — local intents';
     bubble(r.answer.replace(/\n/g,'<br>'),'bot');
   }catch(e){if(e.message!=='unauthorized')toast('Chat failed: '+e.message);}
 }

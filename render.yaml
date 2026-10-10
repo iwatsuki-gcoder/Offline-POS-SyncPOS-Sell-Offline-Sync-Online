@@ -13,6 +13,3 @@ services:
       # Probe real connectivity in the cloud (the local demo default is manual).
       - key: OFFLINEPOS_NET_MODE
         value: auto
-      # Optional: uncomment and set in the Render dashboard (never commit keys).
-      # - key: OFFLINEPOS_LLM_API_KEY
-      #   sync: false
