@@ -33,8 +33,5 @@ That's it. The same app you ran on `localhost:8000`, now on the internet.
 - **Change the passwords.** Everyone on the internet can open your URL,
   and the demo logins are public: edit `seed_defaults()` in
   `offlinepos/auth.py` (then it re-seeds on next deploy).
-- **LLM key:** add `OFFLINEPOS_LLM_API_KEY` (and optionally
-  `OFFLINEPOS_LLM_BASE_URL` / `OFFLINEPOS_LLM_MODEL`) under Render's
-  **Environment** tab — never commit keys to the repo.
 - The **Auto** connectivity pill probes real internet in the cloud, so
   leave `OFFLINEPOS_NET_MODE=auto` (the blueprint default).

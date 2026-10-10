@@ -22,19 +22,21 @@ online.
 - **Idempotency + exponential backoff** — retried pushes converge to
   exactly-once (ADR-004).
 
-## Hybrid chatbot
-Offline: intent matching over local SQLite (sales totals, stock, sync
-status). Online: LLM API (stubbed, see ADR-002) with graceful fallback.
-Shares the sync engine's connectivity state machine.
+## Chatbot (offline-only)
+Intent matching over local SQLite (sales totals, stock, sync
+status). No model, no network — instant, and it works with zero
+connectivity, exactly like billing. The bot reads the shared
+connectivity state machine so its "sync status" answer can never
+disagree with the sync engine's view of the world.
 
 ## Quickstart
 ```bash
 python3 simulations/run_all.py
 ```
-Runs 14 simulation scenarios (offline sale→sync, price conflict,
+Runs 13 simulation scenarios (offline sale→sync, price conflict,
 delta merge, flaky-link idempotency, billing priority, offline chatbot,
-clock skew, auth, printing, barcode catalog, tax, LLM fallback,
-connectivity auto-detect, conflict review). Results land in
+clock skew, auth, printing, barcode catalog, tax, connectivity
+auto-detect, conflict review). Results land in
 `SIMULATION_RESULTS.md`.
 
 ## Web app (macOS / Windows / Linux)

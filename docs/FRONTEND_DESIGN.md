@@ -33,18 +33,18 @@
 ### 3. Assistant (chat panel, docked right or full-screen on tablet)
 - Chat bubbles, quick-suggestion chips: *Sales today*, *Stock of …*,
   *Sync status*, *Help*.
-- Mode badge: **Offline** (local intents) vs **Online** (LLM). When online
-  but the LLM key isn't configured, the badge reads *Online (local mode)*
-  and the bot says so — never a spinner of doom.
+- Fully offline — answers come from the terminal's local data. The bot
+  reads the shared connectivity state machine so its sync-status answer
+  matches the sync engine (ADR-007).
 
 ## User flows
 - **Sale offline:** scan → cart → Charge → receipt prints → deltas queue →
   pill flips ONLINE later → auto-sync → pending counters drain to zero.
 - **Conflict:** two counters edit a price offline → both sync → dashboard
   conflicts table gains a row → manager reviews.
-- **Assistant:** cashier asks "why didn't yesterday sync?" offline → bot
-  answers from `audit_log`/pending counts; online → LLM with the same
-  local context injected.
+- **Assistant:** cashier asks "why didn't yesterday sync?" → bot
+  answers from `audit_log`/pending counts, online or offline — local
+  data only.
 
 ## Design tokens (suggested)
 - Theme: dark POS theme (low glare at counters). Background `#121417`,

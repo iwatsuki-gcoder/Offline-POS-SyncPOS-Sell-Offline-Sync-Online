@@ -22,7 +22,7 @@ Repo hygiene is a graded concern in this project, so every commit follows:
 **Branch naming:** `feat/<name>`, `fix/<name>`, `docs/<name>`, `test/<name>`.
 
 ## Pull-request checklist
-- [ ] `python3 simulations/run_all.py` passes (14/14)
+- [ ] `python3 simulations/run_all.py` passes (13/13)
 - [ ] New behaviour has a scenario in `simulations/run_all.py`
 - [ ] Conflict-relevant changes update `docs/ARCHITECTURE_DECISIONS.md`
 - [ ] New limitations added to `docs/KNOWN_LIMITATIONS.md`
