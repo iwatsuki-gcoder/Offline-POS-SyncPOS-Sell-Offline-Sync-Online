@@ -11,8 +11,11 @@ Stated plainly, so the project reads as mature rather than over-claimed.
    clocks. A skewed clock wins the timestamp comparison (demonstrated in
    S7); the conflict is logged for manual review, but there is no NTP
    enforcement or vector-clock upgrade yet.
-4. **Master-data conflicts need a human.** LWW auto-resolves, but the loser
-   is only *logged*. There is no merge UI for a manager to pick the winner.
+4. **Master-data conflicts have review tracking, not a merge UI.** LWW
+   auto-resolves, and a manager can now mark each conflict as `reviewed`
+   (dashboard checkbox → `POST /api/conflicts/review`, audit-logged, S14
+   proves the flow). But the loser is still only *logged* — there is no
+   merge UI for a manager to pick a different winner after the fact.
 5. **Pull is last-sync-wins for state.** Terminals converge to central
    state after pushing. A terminal that stays offline indefinitely will
    diverge until it syncs; there is no peer-to-peer gossip between

@@ -31,9 +31,11 @@ Shares the sync engine's connectivity state machine.
 ```bash
 python3 simulations/run_all.py
 ```
-Runs 7 simulation scenarios (offline sale→sync, price conflict,
+Runs 14 simulation scenarios (offline sale→sync, price conflict,
 delta merge, flaky-link idempotency, billing priority, offline chatbot,
-clock skew). Results land in `SIMULATION_RESULTS.md`.
+clock skew, auth, printing, barcode catalog, tax, LLM fallback,
+connectivity auto-detect, conflict review). Results land in
+`SIMULATION_RESULTS.md`.
 
 ## Web app (macOS / Windows / Linux)
 ```bash

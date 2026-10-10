@@ -26,7 +26,8 @@
   "last sync" timestamp.
 - Conflicts table: entity, local vs remote value, resolution, time —
   read from the local `conflicts` table; a "reviewed" checkbox for the
-  manager (maps to a future `reviewed` flag).
+  manager marks rows reviewed (`POST /api/conflicts/review`, audit-logged;
+  the badge counts unreviewed only).
 - Product table: price, local stock, version, last-updated-by.
 
 ### 3. Assistant (chat panel, docked right or full-screen on tablet)
