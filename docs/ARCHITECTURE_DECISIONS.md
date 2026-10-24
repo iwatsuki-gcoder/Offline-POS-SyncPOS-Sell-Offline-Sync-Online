@@ -27,7 +27,9 @@ the honest trade-off for an LWW scheme. See ADR-005 and S2/S7 simulations.
 
 ## ADR-002: Hybrid chatbot
 
-**Status:** accepted (online path live since 2026-10-06)
+**Status:** superseded by ADR-007 (2026-10-10) — the online LLM path was
+removed; the chatbot is offline-intent-only now. The record below is kept
+for history.
 
 **Context.** The assistant must be useful with zero connectivity (the whole
 point of the product) but richer when online.
@@ -128,3 +130,28 @@ slabs) applied at checkout and printed on the receipt.
 new network dependency — the offline story is unchanged. S11 proves the
 math, persistence, printing, sync carry-over, and the migration of
 pre-tax databases.
+
+## ADR-007: Chatbot is offline-only (LLM path removed)
+
+**Status:** accepted
+
+**Context.** The assistant previously had two modes: offline intent
+matching and an online LLM call (ADR-002, `offlinepos/llm.py`). The LLM
+path was removed — the product direction is a chatbot that answers from
+local data only.
+
+**Decision.**
+- Deleted `offlinepos/llm.py` and every reference to it
+  (`OFFLINEPOS_LLM_*` env config, the online branch in `Chatbot.ask`,
+  the `mode` field on the web chat API, the mode badges in the UI).
+- `Chatbot` keeps its `(local_db, net, terminal_id)` shape: it still
+  reads the shared connectivity state machine so its "sync status"
+  answer can never disagree with the sync engine's.
+- S12 (live LLM call + fallback) is removed from the simulation suite;
+  S6 now asserts the bot answers purely from local intents with no
+  network, online or offline.
+
+**Consequences.** No API keys, no network dependency, no failure modes
+to degrade from — the assistant is as offline as billing. The trade-off
+is explicit: open-ended questions outside sales/stock/sync get a polite
+"I didn't understand that" instead of an LLM answer.

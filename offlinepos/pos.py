@@ -21,11 +21,15 @@ from .sync_engine import SyncEngine
 
 class Terminal:
     def __init__(self, terminal_id: str, workdir: str | Path,
-                 central: CentralDB, clock=None):
+                 central: CentralDB, clock=None, db_path: str | Path | None = None):
         self.terminal_id = terminal_id
         workdir = Path(workdir)
         workdir.mkdir(parents=True, exist_ok=True)
-        self.db = LocalDB(workdir / f"{terminal_id}.db", clock=clock)
+        # db_path lets several terminals share one local database file
+        # (same-machine deployment: instant local consistency, because
+        # SQLite serializes the writers inside one ACID transaction each).
+        self.db = LocalDB(db_path if db_path is not None
+                          else workdir / f"{terminal_id}.db", clock=clock)
         self.central = central
         self.net = Connectivity()
         self.scheduler = PriorityScheduler()
@@ -35,19 +39,24 @@ class Terminal:
         self.chatbot = Chatbot(self.db, self.net, terminal_id)
         self._cart: list[tuple[str, int]] = []
         self._cart_lock = threading.Lock()
-        # chatbot follows the same connectivity state machine as sync
-        self.net.subscribe(lambda state: self.chatbot.on_connectivity(state))
 
     # -- lifecycle -----------------------------------------------------------
     def start(self):
         self.scheduler.start()
 
     def close(self):
+        self.net.set_auto_detect(False)
         self.sync.stop_background()
         self.scheduler.stop()
 
     def set_online(self, value: bool):
         self.net.set_online(value)
+
+    def set_net_mode(self, mode: str) -> str:
+        """'manual' (UI toggle drives state) or 'auto' (real probe drives it)."""
+        if mode not in ("manual", "auto"):
+            raise ValueError(f"unknown net mode {mode!r}")
+        return self.net.set_auto_detect(mode == "auto")
 
     # -- catalog --------------------------------------------------------------
     def seed_catalog(self, items: list[tuple]):
@@ -100,17 +109,17 @@ class Terminal:
         # .get() fallbacks keep pre-tax sale dicts printable
         subtotal = sale.get("subtotal", sale["total"])
         tax_total = sale.get("tax_total", 0.0)
-        lines = [f"=== OfflinePOS receipt ({self.terminal_id}) ==="]
+        lines = [f"=== SwiftBill receipt ({self.terminal_id}) ==="]
         for line in sale["items"]:
             pid, qty, price = line[0], line[1], line[2]
             tax_rate = line[3] if len(line) > 3 else 0.0
             line_tax = line[4] if len(line) > 4 else 0.0
-            lines.append(f"{pid} x{qty} @ ${price:.2f} = ${qty * price:.2f}")
+            lines.append(f"{pid} x{qty} @ ₹{price:.2f} = ₹{qty * price:.2f}")
             if line_tax:
-                lines.append(f"  incl. tax {tax_rate:g}% = ${line_tax:.2f}")
-        lines.append(f"SUBTOTAL: ${subtotal:.2f}")
-        lines.append(f"TAX: ${tax_total:.2f}")
-        lines.append(f"TOTAL: ${sale['total']:.2f}")
+                lines.append(f"  incl. tax {tax_rate:g}% = ₹{line_tax:.2f}")
+        lines.append(f"SUBTOTAL: ₹{subtotal:.2f}")
+        lines.append(f"TAX: ₹{tax_total:.2f}")
+        lines.append(f"TOTAL: ₹{sale['total']:.2f}")
         lines.append(f"txn: {sale['txn_id'][:8]}  idem: {sale['idempotency_key'][:16]}...")
         return {"sale": sale, "text": "\n".join(lines)}
 

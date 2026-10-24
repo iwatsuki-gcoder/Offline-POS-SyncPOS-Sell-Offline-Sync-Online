@@ -1,26 +1,25 @@
-"""OfflinePOS simulation suite.
+"""SwiftBill simulation suite.
 
-Twelve scenarios covering the OS + DBMS concepts in the project:
+Thirteen scenarios covering the OS + DBMS concepts in the project:
   S1 offline sale -> sync (delta sync, ACID local sale)
   S2 price conflict -> last-write-wins + conflict log
   S3 concurrent offline sales -> commutative stock-delta merge
   S4 flaky link -> exponential backoff + idempotent exactly-once
   S5 priority scheduling -> billing never waits on background work
-  S6 hybrid chatbot -> offline intent answering
+  S6 chatbot -> offline intent answering
   S7 clock skew -> skewed timestamp wins LWW, conflict logged for review
   S8 login, roles, sessions
   S9 receipt printing (file + ESC/POS, printer-outage fallback)
   S10 barcode catalog (EAN-13 validation, scan lookup, sync carry-over)
   S11 tax calculation (per-product rates, ACID tax math, receipts, migration)
-  S12 real LLM chatbot (OpenAI-compatible call, store-context prompt, fallback)
+  S13 connectivity auto-detect (socket probe drives the shared state machine)
+  S14 conflict review (manager marks a logged conflict as reviewed)
 
 Run:  python3 simulations/run_all.py
 Writes: SIMULATION_RESULTS.md
 """
 from __future__ import annotations
 
-import http.server
-import json
 import os
 import sqlite3
 import sys
@@ -92,7 +91,7 @@ def s1():
         assert rep.ok and rep.pushed_txns == 1 and rep.retries == 0
         assert central.txn_count() == 1
         assert central.get_product("W1")["stock"] == 18
-        return (f"sale total=${rcpt['sale']['total']:.2f}, local stock 20->18 while offline, "
+        return (f"sale total=₹{rcpt['sale']['total']:.2f}, local stock 20->18 while offline, "
                 f"sync pushed 1 txn, central stock=18, central txns=1")
     finally:
         a.close()
@@ -120,7 +119,7 @@ def s2():
         assert price == 12.0, f"newer write must win, got {price}"
         n_conf = len(b.db.list_conflicts())
         assert n_conf >= 1, "losing/overwriting write must be logged"
-        return (f"A set $11 (older), B set $12 (newer); central price=${price:.2f}; "
+        return (f"A set ₹11 (older), B set ₹12 (newer); central price=₹{price:.2f}; "
                 f"conflicts logged on B: {n_conf} "
                 f"(resolution: {b.db.list_conflicts()[0]['resolution']})")
     finally:
@@ -217,21 +216,21 @@ def s6():
     e = make_terminal("T-E", tmp, central)
     try:
         e.seed_catalog([("W6", "Widget", 10.0, 20)])
-        e.set_online(False)  # offline: no LLM, local intents only
+        e.set_online(False)  # offline: local intents only
         e.scan("W6", 2); e.checkout()
         sales = e.ask("total sales today")
         stock = e.ask("stock of Widget")
         sync = e.ask("sync status")
         huh = e.ask("blargh zzz")
-        assert "$20.00" in sales, sales
+        assert "₹20.00" in sales, sales
         assert "18" in stock, stock
         assert "OFFLINE" in sync and "pending" in sync, sync
-        assert "offline" in huh.lower(), huh
-        assert e.chatbot.mode == "offline"
+        assert "didn't understand" in huh.lower(), huh
         e.set_online(True)
-        assert e.chatbot.mode == "online", "bot must follow the shared state machine"
+        sales_on = e.ask("total sales today")
+        assert "₹20.00" in sales_on, sales_on
         return (f"offline answers OK: sales='{sales}', stock='{stock}', "
-                f"sync='{sync}'; mode followed net OFFLINE->ONLINE")
+                f"sync='{sync}'; bot is offline-intent only, no network")
     finally:
         e.close()
 
@@ -256,8 +255,8 @@ def s7():
         price = central.get_product("W7")["price"]
         assert price == 30.0, f"skewed newer ts wins LWW, got {price}"
         assert len(b.db.list_conflicts()) >= 1
-        return (f"T-B clock +5000s: its $30 write carried the newer timestamp and won "
-                f"LWW (central=${price:.2f}); conflict logged for manual review "
+        return (f"T-B clock +5000s: its ₹30 write carried the newer timestamp and won "
+                f"LWW (central=₹{price:.2f}); conflict logged for manual review "
                 f"-> '{b.db.list_conflicts()[0]['resolution']}' (known limitation)")
     finally:
         a.close(); b.close()
@@ -300,7 +299,7 @@ def s9():
     sale = {"txn_id": "abc123def456", "total": 45.50,
             "items": [["W1", 2, 10.0], ["G1", 1, 25.5]]}
     text = format_text_receipt(sale, "COUNTER-1")
-    assert "TOTAL" in text and "$45.50" in text and "abc123de" in text
+    assert "TOTAL" in text and "₹45.50" in text and "abc123de" in text
     assert max(len(l) for l in text.splitlines()) <= 42, "42-column format"
     # file backend
     pr = ReceiptPrinter(mode="file", receipt_dir=os.path.join(tmp, "rcpts"))
@@ -312,7 +311,7 @@ def s9():
     r2 = pr2.print_receipt(sale, "COUNTER-1")
     assert r2["ok"] and "file" in r2["via"] and os.path.exists(r2["path"]), \
         "unreachable printer must fall back to file, never raise"
-    return (f"42-col receipt OK (total $45.50); file backend wrote {r['path']}; "
+    return (f"42-col receipt OK (total ₹45.50); file backend wrote {r['path']}; "
             f"unreachable network printer fell back to file, no exception")
 
 
@@ -320,10 +319,10 @@ def s9():
 @scenario("S10: product catalog + barcode lookup")
 def s10():
     catalog = load_catalog()
-    assert len(catalog) == 6, f"expected 6 products, got {len(catalog)}"
+    assert len(catalog) == 14, f"expected 14 products, got {len(catalog)}"
     for c in catalog:
         assert ean13_is_valid(c["barcode"]), f"bad EAN-13: {c['barcode']}"
-    assert len({c["barcode"] for c in catalog}) == 6, "barcodes must be unique"
+    assert len({c["barcode"] for c in catalog}) == 14, "barcodes must be unique"
 
     tmp, central = make_env()
     t = make_terminal("T-SCAN", tmp, central)
@@ -360,16 +359,16 @@ def s11():
         assert sale["subtotal"] == 25.0, sale
         assert sale["tax_total"] == 3.7, sale
         assert sale["total"] == 28.7, sale
-        assert "SUBTOTAL: $25.00" in rcpt["text"], rcpt["text"]
-        assert "TAX: $3.70" in rcpt["text"], rcpt["text"]
-        assert "TOTAL: $28.70" in rcpt["text"], rcpt["text"]
+        assert "SUBTOTAL: ₹25.00" in rcpt["text"], rcpt["text"]
+        assert "TAX: ₹3.70" in rcpt["text"], rcpt["text"]
+        assert "TOTAL: ₹28.70" in rcpt["text"], rcpt["text"]
         # persisted breakdown columns
         row = a.db._conn().execute(
             "SELECT subtotal, tax_total, total FROM transactions").fetchone()
         assert (row["subtotal"], row["tax_total"], row["total"]) == (25.0, 3.7, 28.7)
         # printer path shows the tax lines too
         text = format_text_receipt(sale, "T-A")
-        assert "TAX" in text and "$28.70" in text, text
+        assert "TAX" in text and "₹28.70" in text, text
         # sync round-trip keeps the taxed total intact
         central.seed_product("W1", "Widget", 10.0, 20, tax_rate=18.0)
         central.seed_product("B1", "Bolt", 2.0, 30, tax_rate=5.0)
@@ -393,82 +392,105 @@ def s11():
         assert ldb.get_product("L1")["tax_rate"] == 0.0
         sale2 = ldb.create_sale([("L1", 1)], "T-X")
         assert sale2["total"] == 5.0 and sale2["tax_total"] == 0.0, sale2
-        return ("2x Widget@18% + 1x Bolt@5% + 1x tax-free: subtotal $25.00, "
-                "tax $3.70, total $28.70; breakdown persisted, printed, and "
+        return ("2x Widget@18% + 1x Bolt@5% + 1x tax-free: subtotal ₹25.00, "
+                "tax ₹3.70, total ₹28.70; breakdown persisted, printed, and "
                 "synced; pre-tax DBs migrate cleanly with 0% default")
     finally:
         a.close()
 
 
-class _FakeLLM(http.server.BaseHTTPRequestHandler):
-    """Minimal OpenAI-compatible /chat/completions stub for S12."""
-    mode = "ok"
-    seen: list = []
+# ---------------------------------------------------------------- S13
+@scenario("S13: real connectivity auto-detect")
+def s13():
+    import socket as _socket
+    from offlinepos.net import Connectivity, internet_reachable
 
-    def do_POST(self):
-        length = int(self.headers.get("Content-Length", 0))
-        _FakeLLM.seen.append(json.loads(self.rfile.read(length) or b"{}"))
-        if _FakeLLM.mode == "error":
-            self.send_response(500); self.end_headers(); return
-        payload = json.dumps(
-            {"choices": [{"message": {"content": "LLM: sales look good today"}}]}
-        ).encode()
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(payload)))
-        self.end_headers()
-        self.wfile.write(payload)
+    # a local "internet": plain TCP server; kernel completes the handshake
+    srv = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+    srv.setsockopt(_socket.SOL_SOCKET, _socket.SO_REUSEADDR, 1)
+    srv.bind(("127.0.0.1", 0))
+    srv.listen(5)
+    port = srv.getsockname()[1]
+    stop = threading.Event()
 
-    def log_message(self, *args):  # keep test output clean
-        pass
+    def _serve():
+        while not stop.is_set():
+            try:
+                c, _ = srv.accept()
+                c.close()
+            except OSError:
+                break
 
-
-# ---------------------------------------------------------------- S12
-@scenario("S12: real LLM chatbot with graceful fallback")
-def s12():
-    tmp, central = make_env()
-    e = make_terminal("T-E", tmp, central)
-    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _FakeLLM)
-    port = srv.server_address[1]
-    threading.Thread(target=srv.serve_forever, daemon=True).start()
-    old_env = dict(os.environ)
+    threading.Thread(target=_serve, daemon=True).start()
     try:
-        os.environ["OFFLINEPOS_LLM_BASE_URL"] = f"http://127.0.0.1:{port}/v1"
-        os.environ["OFFLINEPOS_LLM_API_KEY"] = "test-key"
-        os.environ["OFFLINEPOS_LLM_MODEL"] = "test-model"
-        e.seed_catalog([("W9", "Widget", 10.0, 20)])
-        e.set_online(True)
-        ans = e.ask("how are sales?")
-        assert ans == "LLM: sales look good today", ans
-        body = _FakeLLM.seen[-1]
-        assert body["model"] == "test-model", body
-        msgs = {m["role"]: m["content"] for m in body["messages"]}
-        assert "OfflinePOS terminal T-E" in msgs["system"], msgs["system"]
-        assert "how are sales?" in msgs["user"]
-        # server blows up -> degrade to offline intents, no exception
-        _FakeLLM.mode = "error"
-        e.scan("W9", 1); e.checkout()
-        fb = e.ask("total sales today")
-        assert "$10.00" in fb, fb
-        # no key configured -> offline intents, and no HTTP attempt at all
-        del os.environ["OFFLINEPOS_LLM_API_KEY"]
-        _FakeLLM.mode = "ok"
-        n = len(_FakeLLM.seen)
-        fb2 = e.ask("total sales today")
-        assert "$10.00" in fb2 and len(_FakeLLM.seen) == n, fb2
-        return ("online LLM answered through a fake OpenAI-compatible server; "
-                "request carried model + store-context system prompt; HTTP 500 "
-                "fell back to offline intents; missing key made zero HTTP calls")
+        # probe: reachable endpoint -> True; dead port -> False; no internet needed
+        assert internet_reachable(endpoints=[("127.0.0.1", port)], timeout=1)
+        assert not internet_reachable(endpoints=[("127.0.0.1", 1)], timeout=0.5)
+        # auto mode drives the shared state machine from probe results
+        net = Connectivity()
+        seen = []
+        net.subscribe(seen.append)
+        net.set_auto_detect(True, interval=0.2,
+                            endpoints=[("127.0.0.1", port)], timeout=1)
+        deadline = time.monotonic() + 5
+        while not net.online and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert net.online and net.mode == "auto", "probe should flip state online"
+        assert "online" in seen
+        # "internet" dies -> state follows back to offline
+        stop.set(); srv.close()
+        deadline = time.monotonic() + 8
+        while net.online and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert not net.online, "dead endpoint should flip state offline"
+        net.set_auto_detect(False)
+        assert net.mode == "manual"
+        return ("probe True vs local server / False vs dead port; auto-detect "
+                "thread drove OFFLINE->ONLINE->OFFLINE on the shared state machine")
     finally:
-        os.environ.clear(); os.environ.update(old_env)
-        _FakeLLM.mode = "ok"
-        srv.shutdown(); srv.server_close()
-        e.close()
+        stop.set()
+        try:
+            srv.close()
+        except OSError:
+            pass
+
+
+# ---------------------------------------------------------------- S14
+@scenario("S14: conflict review -> mark as reviewed")
+def s14():
+    tmp, central = make_env()
+    a = make_terminal("T-A", tmp, central)
+    b = make_terminal("T-B", tmp, central)
+    try:
+        for t in (a, b):
+            t.seed_catalog([("W2", "Gadget", 10.0, 50)])
+            t.set_online(False)
+        central.seed_product("W2", "Gadget", 10.0, 50)
+        base = time.time()
+        a.db.update_product_price("W2", 11.0, "T-A", ts=base + 1)
+        b.db.update_product_price("W2", 12.0, "T-B", ts=base + 2)
+        a.set_online(True)
+        b.set_online(True)
+        a.sync_now()
+        b.sync_now()
+        conflicts = b.db.list_conflicts()
+        assert conflicts, "a conflict must be logged before it can be reviewed"
+        assert b.db.unreviewed_conflict_count() == len(conflicts)
+        cid = conflicts[0]["conflict_id"]
+        assert b.db.mark_conflict_reviewed(cid) is True
+        assert b.db.mark_conflict_reviewed("does-not-exist") is False
+        assert b.db.unreviewed_conflict_count() == len(conflicts) - 1
+        assert all(c["reviewed"] for c in b.db.list_conflicts()
+                   if c["conflict_id"] == cid)
+        return (f"{len(conflicts)} conflict(s) logged; marked {cid[:8]} as "
+                f"reviewed; unreviewed={b.db.unreviewed_conflict_count()}")
+    finally:
+        a.close(); b.close()
 
 
 def write_report():
     passed = sum(1 for r in RESULTS if r["passed"])
-    lines = ["# OfflinePOS Simulation Results",
+    lines = ["# SwiftBill Simulation Results",
              "",
              f"Ran {len(RESULTS)} scenarios, **{passed} passed**, "
              f"{len(RESULTS) - passed} failed.",
@@ -492,7 +514,7 @@ def write_report():
 
 
 if __name__ == "__main__":
-    for fn in (s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12):
+    for fn in (s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s13, s14):
         fn()
     ok = write_report()
     sys.exit(0 if ok else 1)

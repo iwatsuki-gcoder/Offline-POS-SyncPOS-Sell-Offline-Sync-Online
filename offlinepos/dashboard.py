@@ -14,7 +14,7 @@ def render_dashboard(local_db, terminal_id: str, net) -> str:
     state = "ONLINE" if net.online else "OFFLINE"
 
     lines = [
-        f"--- OfflinePOS health dashboard [{terminal_id}] [{state}] ---",
+        f"--- SwiftBill health dashboard [{terminal_id}] [{state}] ---",
         f"last sync      : {last_s}",
         f"pending        : txns={counts['txns']} deltas={counts['deltas']} "
         f"updates={counts['updates']}",
@@ -23,7 +23,7 @@ def render_dashboard(local_db, terminal_id: str, net) -> str:
     ]
     for p in products:
         lines.append(f"  {p['product_id']:8} {p['name'][:20]:20} "
-                     f"stock={p['stock']:4} price=${p['price']:.2f}")
+                     f"stock={p['stock']:4} price=₹{p['price']:.2f}")
     if conflicts:
         lines.append("recent conflicts:")
         for c in conflicts[-3:]:

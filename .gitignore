@@ -10,3 +10,6 @@ data/
 # OS / editor
 .DS_Store
 Thumbs.db
+
+# Sample SQLite DBs are distributed as a zip, never committed
+sample-data/*.db

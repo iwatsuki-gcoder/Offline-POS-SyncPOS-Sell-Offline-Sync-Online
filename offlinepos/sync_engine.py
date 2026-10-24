@@ -53,7 +53,10 @@ class SyncEngine:
         self._bg_stop = threading.Event()
 
     # -- one round -----------------------------------------------------------
-    def sync_once(self, max_retries=5) -> SyncReport:
+    def push_once(self, max_retries=5) -> SyncReport:
+        """Push phase only: send pending rows to central, mark them synced,
+        and log any conflicts. The pull phase is separate so multi-terminal
+        callers can push *everywhere* before anyone pulls."""
         t0 = self.clock()
         rep = SyncReport()
         if not self.net.online:
@@ -114,18 +117,35 @@ class SyncEngine:
             self.local.audit(self.terminal_id, "sync_conflicts",
                              f"{len(rep.conflicts)} conflict(s) resolved")
 
-        # pull: converge local state toward central
+        rep.ok = True
+        rep.duration_s = self.clock() - t0
+        return rep
+
+    def pull_once(self) -> None:
+        """Pull phase only: converge local state toward central.
+
+        Non-fatal on error, mirroring the tail of sync_once.
+        """
+        if not self.net.online:
+            return
         try:
             self.local.apply_central_products(self.central.fetch_products())
         except Exception as e:  # noqa: BLE001 - pull failure is non-fatal
             self.local.audit(self.terminal_id, "pull_failed", str(e))
-
         self.local.set_kv("last_sync_ts", str(self.clock()))
+
+    def sync_once(self, max_retries=5) -> SyncReport:
+        """One full sync round: push, then pull. Unchanged behaviour —
+        background sync and the simulations keep using this."""
+        rep = self.push_once(max_retries=max_retries)
+        if not rep.ok:
+            return rep
+        t0 = self.clock()
+        self.pull_once()
         self.local.audit(self.terminal_id, "sync",
                          f"txns={rep.pushed_txns} deltas={rep.pushed_deltas} "
                          f"updates={rep.pushed_updates} retries={rep.retries}")
-        rep.ok = True
-        rep.duration_s = self.clock() - t0
+        rep.duration_s += self.clock() - t0
         return rep
 
     # -- background loop -------------------------------------------------------
