@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""OfflinePOS end-to-end demo.
+"""SwiftBill end-to-end demo.
 
 Run:  python3 demo.py        (or press F5 in VS Code)
 
@@ -75,7 +75,7 @@ def main():
         b.set_online(True)
         a.sync_now()
         b.sync_now()
-        print(f"Central Gadget price: ${central.get_product('G1')['price']:.2f} "
+        print(f"Central Gadget price: ₹{central.get_product('G1')['price']:.2f} "
               f"(newer write won last-write-wins)")
         print(f"Conflicts logged for review: {len(b.db.list_conflicts())}")
 

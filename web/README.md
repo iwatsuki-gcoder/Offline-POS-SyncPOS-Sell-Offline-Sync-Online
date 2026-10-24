@@ -1,4 +1,4 @@
-# OfflinePOS Web App
+# SwiftBill Web App
 
 Runs on **macOS, Windows, and Linux** — anything with Python 3.10+ and a
 web browser. No build step, no app store, no installers.
@@ -80,20 +80,21 @@ printer is unreachable — it never crashes a sale.
 Receipts print SUBTOTAL / TAX / TOTAL. Tax rates come from
 `catalog/products.csv` (`tax_rate` column, percent, exclusive of price).
 
-## Chatbot LLM (optional)
+## Connectivity
 
-The Assistant tab answers from local data when offline. Online, it can
-call a real LLM (OpenAI-compatible) — set these to enable it:
+The header pill is a **manual simulation toggle** by default (deterministic
+offline/online for demos and chaos testing). Press **Auto ○** next to it
+to switch to real connectivity auto-detect: the backend probes actual
+internet reachability every 10 s and drives the pill, sync engine, and
+chatbot from the result. Clicking the pill while in auto mode drops back
+to manual.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `OFFLINEPOS_LLM_API_KEY` | — | required; without it the bot stays on offline intents |
-| `OFFLINEPOS_LLM_BASE_URL` | `https://api.openai.com/v1` | any OpenAI-compatible endpoint, e.g. `http://localhost:11434/v1` for local Ollama |
-| `OFFLINEPOS_LLM_MODEL` | `gpt-4o-mini` | model name |
-| `OFFLINEPOS_LLM_TIMEOUT` | `20` | seconds per request |
+| `OFFLINEPOS_NET_MODE` | `manual` | `auto` to start with real connectivity detection |
 
-Any failure (no key, timeout, bad response) falls back to offline intents
-— the terminal never blocks on the network.
+API: `POST /api/net` (manual set), `POST /api/net/mode`
+(`{"mode":"auto"|"manual"}`), `GET /api/net/status`.
 
 ## API quick reference
 

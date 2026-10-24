@@ -2,12 +2,39 @@
 
 Both components subscribe to the *same* state instead of tracking their own,
 so the chatbot's offline/online behaviour can never disagree with the sync
-engine's. In production ``set_online`` would be driven by a socket probe;
-in simulations and tests it is driven manually (or by the chaos injector).
+engine's.
+
+Two modes:
+- ``manual`` (default): ``set_online`` is driven by hand — the UI toggle,
+  simulations, or the chaos injector. This is the deterministic demo mode.
+- ``auto``: a background thread probes real internet reachability every
+  ``interval`` seconds and drives the state machine from the result.
+  ``set_online`` still works but the next probe may override it.
 """
 from __future__ import annotations
 
+import socket
 import threading
+import time
+
+#: Well-known endpoints used for the reachability probe. Plain TCP (no
+#: HTTP, no DNS lookup of our own) so the check is fast and dependency-free.
+DEFAULT_ENDPOINTS = (("8.8.8.8", 53), ("1.1.1.1", 443))
+
+
+def internet_reachable(endpoints=DEFAULT_ENDPOINTS, timeout: float = 3.0) -> bool:
+    """True if any probe endpoint accepts a TCP connection.
+
+    ``endpoints`` is injectable so tests can point it at a local socket
+    server instead of the real internet.
+    """
+    for host, port in endpoints:
+        try:
+            with socket.create_connection((host, port), timeout=timeout):
+                return True
+        except OSError:
+            continue
+    return False
 
 
 class Connectivity:
@@ -18,6 +45,48 @@ class Connectivity:
         self._state = self.OFFLINE
         self._lock = threading.Lock()
         self._subs: list = []
+        self._mode = "manual"
+        self._auto_stop: threading.Event | None = None
+        self._auto_thread: threading.Thread | None = None
+
+    @property
+    def mode(self) -> str:
+        with self._lock:
+            return self._mode
+
+    def set_auto_detect(self, enabled: bool, interval: float = 10.0,
+                        endpoints=DEFAULT_ENDPOINTS,
+                        timeout: float = 3.0) -> str:
+        """Switch between 'manual' and 'auto' connectivity modes.
+
+        In auto mode a daemon thread probes ``internet_reachable`` every
+        ``interval`` seconds and drives the state machine. Idempotent.
+        Returns the new mode.
+        """
+        with self._lock:
+            want = "auto" if enabled else "manual"
+            if want == self._mode:
+                return self._mode
+            self._mode = want
+            if self._auto_stop is not None:
+                self._auto_stop.set()
+                self._auto_stop = None
+            if want == "auto":
+                stop = self._auto_stop = threading.Event()
+                t = self._auto_thread = threading.Thread(
+                    target=self._auto_loop,
+                    args=(stop, interval, endpoints, timeout),
+                    daemon=True, name="net-autodetect")
+                t.start()
+            return want
+
+    def _auto_loop(self, stop: threading.Event, interval: float,
+                   endpoints, timeout: float):
+        while not stop.wait(interval):
+            try:
+                self.set_online(internet_reachable(endpoints, timeout))
+            except Exception:
+                pass  # a failed probe must never kill the loop
 
     @property
     def online(self) -> bool:

@@ -4,7 +4,7 @@ Model answers to the questions examiners are most likely to ask, each one
 grounded in a specific architecture decision (ADR) or simulation you can
 re-run live. The full suite runs in ~3 s:
 
-    python3 simulations/run_all.py    # 12/12 PASS -> SIMULATION_RESULTS.md
+    python3 simulations/run_all.py    # 13/13 PASS -> SIMULATION_RESULTS.md
 
 ## DBMS questions
 
@@ -55,6 +55,17 @@ enforcement or a vector-clock upgrade is listed as future work.
 
 ## OS questions
 
+**Q: The UI has an offline/online toggle I can flip with no internet — isn't that fake?**
+A: It's a deliberate simulation control, not a bug. `net.py` is a shared
+connectivity state machine: in manual mode (default) the toggle, the
+chaos injector, or tests drive it, so demos of "link drops mid-sale" are
+deterministic. Flipping it with no real internet is safe — sync fails,
+backs off exponentially (S4), and the chatbot falls back to offline
+intents. Pressing **Auto** (or `OFFLINEPOS_NET_MODE=auto`) switches the
+same state machine to a real socket probe every 10 s, so the pill, the
+sync engine, and the chatbot all follow actual connectivity. S13 proves
+the probe and the auto-driven transitions.
+
 **Q: How do you guarantee a customer never waits at the counter because of sync work?**
 A: Not one shared priority queue — a dedicated billing lane (ADR-003). One
 worker runs checkouts FIFO and does nothing else; a separate background
@@ -79,31 +90,20 @@ ADR-004 and exercised in S4.
 ## Chatbot questions
 
 **Q: How can a chatbot be useful with no internet — isn't that the whole point of the product?**
-A: Offline it runs deterministic intent matching (regex over local SQLite):
-sales totals, stock checks, sync status — no model, no network, instant.
-Online it delegates open-ended questions to an LLM API. The key design
-choice: the bot reads the *same* `Connectivity` state machine as the sync
-engine (ADR-002), so the bot's view of online/offline can never disagree
-with the sync engine's. S6 shows offline answers and the bot tracking
-OFFLINE → ONLINE transitions.
+A: It runs deterministic intent matching (regex over local SQLite):
+sales totals, stock checks, sync status — no model, no network,
+instant. The key design choice: the bot reads the *same* `Connectivity`
+state machine as the sync engine (ADR-007), so its "sync status" answer
+can never disagree with the sync engine's view of the world. S6 shows
+the offline answers; the bot has no online mode to drift out of sync.
 
-**Q: What if the LLM API fails mid-session while online?**
-A: Graceful degradation: the bot falls back to offline intents and says
-so, instead of erroring (ADR-002). The online path is real now — a
-stdlib-only OpenAI-compatible `/chat/completions` client
-(`offlinepos/llm.py`, no SDK dependency), configurable for OpenAI, any
-OpenAI-compatible provider, or a local Ollama via
-`OFFLINEPOS_LLM_BASE_URL`. Every failure mode (no key, timeout, HTTP
-error, malformed JSON) raises `LLMError`, which the chatbot catches and
-degrades on. Without `OFFLINEPOS_LLM_API_KEY` set, the bot simply stays on
-offline intents (Known Limitations #6). S12 proves the live call and the
-fallback against a fake server.
-
-**Q: Doesn't an LLM make up numbers? How do you keep its answers factual?**
-A: The system prompt injects live store context — today's sales, product
-count, low-stock list, pending sync counts, last sync time — so answers
-are grounded in the terminal's own data, and the prompt tells it to say
-what it doesn't know rather than invent numbers.
+**Q: Why no LLM? Wouldn't that make the assistant smarter?**
+A: Deliberate product decision (ADR-007): an LLM needs a key, a network,
+and a graceful-degradation story — all failure modes the offline-first
+product shouldn't carry. The assistant answers exactly what a cashier
+needs (sales, stock, sync) from local data, instantly. Open-ended
+questions outside that get a polite "I didn't understand that" instead
+of an invented answer.
 
 ## Billing / tax questions
 

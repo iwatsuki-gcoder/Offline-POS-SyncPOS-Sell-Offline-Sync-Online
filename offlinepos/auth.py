@@ -1,4 +1,4 @@
-"""Cashier / manager authentication for the OfflinePOS web app.
+"""Cashier / manager authentication for the SwiftBill web app.
 
 - Passwords: PBKDF2-HMAC-SHA256 with per-user salt (stdlib only).
 - Sessions: random bearer tokens, in-memory with 8h expiry.

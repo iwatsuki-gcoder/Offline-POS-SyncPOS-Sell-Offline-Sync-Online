@@ -3,17 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>OfflinePOS</title>
+<title>SwiftBill</title>
+<link rel="icon" type="image/webp" href="assets/logo.webp">
 <style>
   :root{--bg:#121417;--surface:#1c1f24;--surface2:#242830;--text:#f2f4f8;--muted:#9aa3b2;
     --green:#22c55e;--red:#ef4444;--amber:#f59e0b;--blue:#3b82f6;--border:#2e333d;--radius:12px;}
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:var(--bg);color:var(--text);font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh}
   header{display:flex;align-items:center;gap:12px;padding:12px 20px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10}
-  .logo{font-weight:800;font-size:18px}.logo span{color:var(--blue)}
+  .logo{font-weight:800;font-size:18px;display:flex;align-items:center;gap:9px}.logo span{color:var(--blue)}.logo img{width:30px;height:30px;border-radius:8px}
   select{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px}
   .pill{margin-left:auto;cursor:pointer;border:none;border-radius:999px;padding:6px 14px;font-weight:700;font-size:13px;color:#fff}
   .pill.online{background:var(--green)}.pill.offline{background:var(--red)}
+  .pill.ghost{background:var(--surface2);border:1px solid var(--border);color:var(--text);margin-left:0}
+  .pill.ghost.on{background:var(--blue);border-color:var(--blue);color:#fff}
   .clock{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
   nav{display:flex;gap:8px;padding:12px 20px 0}
   nav button{background:none;border:none;color:var(--muted);font-size:15px;font-weight:600;padding:10px 16px;cursor:pointer;border-bottom:3px solid transparent}
@@ -80,15 +83,17 @@
 </head>
 <body>
 <header>
-  <div class="logo">Offline<span>POS</span></div>
+  <div class="logo"><img src="assets/logo.webp" alt="SwiftBill logo">Swift<span>Bill</span></div>
   <select id="termSel"><option>COUNTER-1</option><option>COUNTER-2</option></select>
-  <button class="pill offline" id="netPill" title="Toggle connectivity">OFFLINE</button>
+  <button class="pill offline" id="netPill" title="Manual simulation toggle">OFFLINE</button>
+  <button class="pill ghost" id="netAutoBtn" title="Toggle real connectivity auto-detect" style="font-size:11px;padding:6px 10px">Auto ○</button>
   <div class="clock" id="clock">--:--:--</div>
   <div class="userchip" id="userChip" style="display:none"><span id="userName"></span><button id="logoutBtn">Sign out</button></div>
 </header>
 <div id="loginOverlay">
   <div class="login-card">
-    <h2>Offline<span style="color:var(--blue)">POS</span></h2>
+    <img src="assets/logo.webp" alt="SwiftBill logo" style="width:64px;height:64px;border-radius:16px;margin-bottom:12px">
+    <h2>Swift<span style="color:var(--blue)">Bill</span></h2>
     <p>Sign in to start the shift.</p>
     <div class="err" id="loginErr"></div>
     <input id="loginUser" placeholder="Username" autocomplete="username">
@@ -100,7 +105,7 @@
 <nav>
   <button class="active" data-tab="billing">Billing</button>
   <button data-tab="dash">Sync Dashboard</button>
-  <button data-tab="chat">Assistant <span class="modebadge" id="modeBadge">Offline</span></button>
+  <button data-tab="chat">Assistant</button>
 </nav>
 <main>
   <section class="screen active" id="tab-billing">
@@ -132,14 +137,14 @@
     </div>
     <div class="grid2" style="grid-template-columns:1fr 1fr">
       <div class="card"><h3>Sync control</h3>
-        <button class="btn green" id="syncBtn">Sync now</button>
+        <button class="btn green" id="syncBtn">Sync all counters</button>
         <button class="btn ghost" id="conflictBtn">Run conflict demo</button>
         <button class="btn ghost" id="resetBtn">Reset demo data</button>
         <p class="note" id="syncNote"></p>
       </div>
       <div class="card"><h3>Conflicts needing review <span class="badge b-amber" id="cfCount">0</span></h3>
-        <table><thead><tr><th>Product</th><th>Kept</th><th>Overwritten</th><th>Resolution</th></tr></thead>
-        <tbody id="cfBody"><tr><td colspan="4" style="color:var(--muted)">No conflicts.</td></tr></tbody></table>
+        <table><thead><tr><th>Product</th><th>Kept</th><th>Overwritten</th><th>Resolution</th><th>Reviewed</th></tr></thead>
+        <tbody id="cfBody"><tr><td colspan="5" style="color:var(--muted)">No conflicts.</td></tr></tbody></table>
       </div>
     </div>
     <div class="card" style="margin-top:16px"><h3>Products</h3>
@@ -149,7 +154,7 @@
   </section>
   <section class="screen" id="tab-chat">
     <div class="card">
-      <h3>Assistant <span class="modebadge" id="modeBadge2">Offline — local intents</span></h3>
+      <h3>Assistant</h3>
       <div class="chat" id="chatBox"><div class="msg bot">Hi! Ask me about sales, stock, or sync. I work fully offline.</div></div>
       <div class="chips">
         <button class="chip" data-q="total sales today">Sales today</button>
@@ -160,12 +165,12 @@
         <input id="chatIn" placeholder="Ask about sales, stock, or sync…">
         <button class="btn" id="sendBtn" style="width:auto;padding:12px 20px">Send</button>
       </div>
-      <p class="note">Online with an API key set → real LLM answers grounded in live store data (ADR-002); otherwise local intents — never an error.</p>
+      <p class="note">Fully offline — answers come from this terminal's local data.</p>
     </div>
   </section>
 </main>
 <div class="modal" id="receiptModal"><div class="receipt">
-  <h4>OfflinePOS</h4><div id="rcptTerm" style="text-align:center;color:#555"></div>
+  <h4>SwiftBill</h4><div id="rcptTerm" style="text-align:center;color:#555"></div>
   <div id="rcptLines"></div><hr>
   <div class="row"><span>Subtotal</span><span id="rcptSubtotal"></span></div>
   <div class="row"><span>Tax</span><span id="rcptTax"></span></div>
@@ -173,6 +178,7 @@
   <div class="row" style="margin-top:6px"><span>txn</span><span id="rcptTxn"></span></div>
   <p style="text-align:center;margin-top:10px">Stored locally — will sync when online.</p>
   <button class="btn" id="printBtn" style="margin-top:12px;background:var(--green)">Print receipt</button>
+  <button class="btn" id="dlBtn" style="margin-top:8px">Download receipt (.txt)</button>
   <button class="btn ghost" style="margin-top:8px" onclick="document.getElementById('receiptModal').classList.remove('show')">Done</button>
   <p class="note" id="printNote" style="text-align:center"></p>
 </div></div>
@@ -242,20 +248,43 @@ document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()
 }));
 setInterval(()=>{$('clock').textContent=new Date().toLocaleTimeString();},1000);
 $('termSel').addEventListener('change',e=>{terminal=e.target.value;cart={};loadProducts();renderCart();refreshDash();});
-// connectivity
+// connectivity: manual (simulated) toggle + auto (real probe) mode
+let netMode='manual';
 $('netPill').addEventListener('click',async()=>{
   try{
+    if(netMode==='auto'){
+      // manual override: drop back to manual mode, then toggle
+      await api('/api/net/mode',{method:'POST',body:JSON.stringify({mode:'manual'})});
+      netMode='manual';
+    }
     const d=await api('/api/net',{method:'POST',body:JSON.stringify({online:!online})});
     setOnline(d.online); refreshDash();
   }catch(e){if(e.message!=='unauthorized')toast('Network error: '+e.message);}
 });
+$('netAutoBtn').addEventListener('click',async()=>{
+  try{
+    const next=netMode==='auto'?'manual':'auto';
+    const d=await api('/api/net/mode',{method:'POST',body:JSON.stringify({mode:next})});
+    netMode=d.mode; toast(next==='auto'?'Auto-detect on — pill follows real connectivity.':'Manual mode — pill is a simulation toggle.');
+    pollNetStatus();
+  }catch(e){if(e.message!=='unauthorized')toast('Network error: '+e.message);}
+});
+async function pollNetStatus(){
+  // lightweight poll so the pill tracks the auto-detect thread; never logs anyone out
+  try{
+    const r=await fetch('/api/net/status?terminal='+terminal,{headers:authHeaders()});
+    if(!r.ok)return;
+    const s=await r.json();
+    netMode=s.mode; setOnline(s.online);
+    $('netPill').title=netMode==='auto'?'Auto-detected real connectivity (click to override)':'Manual simulation toggle';
+    $('netAutoBtn').classList.toggle('on',netMode==='auto');
+    $('netAutoBtn').textContent=netMode==='auto'?'Auto ●':'Auto ○';
+  }catch(e){/* server may be starting */}
+}
+setInterval(pollNetStatus,10000);
 function setOnline(v){
   online=v; const p=$('netPill');
   p.textContent=v?'ONLINE':'OFFLINE'; p.className='pill '+(v?'online':'offline');
-  for(const id of ['modeBadge','modeBadge2']){
-    const el=$(id); el.classList.toggle('on',v);
-    el.textContent=id==='modeBadge2'?(v?'Online — LLM':'Offline — local intents'):(v?'Online':'Offline');
-  }
 }
 // products + cart
 async function loadProducts(){
@@ -266,8 +295,10 @@ function renderProds(f=''){
   const g=$('prodGrid'); g.innerHTML='';
   products.filter(p=>(p.name+p.product_id).toLowerCase().includes(f.toLowerCase())).forEach(p=>{
     const d=document.createElement('div');
-    d.className='prod'+(p.stock===0?' out':'');
-    d.innerHTML=`<div class="nm">${p.name}</div><div class="pr">₹${p.price.toFixed(2)}</div><div class="st">${p.stock} in stock${p.barcode?'<br>⛁ '+p.barcode:''}</div>`;
+    d.className='prod'+(p.stock<=0?' out':'');
+const stockTxt=p.stock>0?`${p.stock} in stock`:'Out of stock';
+d.innerHTML=`<div class="nm">${p.name}</div><div class="pr">₹${p.price.toFixed(2)}</div><div class="st">${stockTxt}${p.barcode?'<br>⛁ '+p.barcode:''}</div>`;
+
     if(p.stock>0) d.onclick=()=>{cart[p.product_id]=(cart[p.product_id]||0)+1;renderCart();};
     g.appendChild(d);
   });
@@ -378,32 +409,43 @@ async function refreshDash(){
     $('stTx').textContent=s.pending.txns; $('stDe').textContent=s.pending.deltas; $('stUp').textContent=s.pending.updates;
     $('stLa').textContent=s.last_sync_ts?new Date(+s.last_sync_ts*1000).toLocaleTimeString():'never';
     const c=await api('/api/conflicts');
-    $('cfCount').textContent=c.conflicts.length;
+    const unrev=c.conflicts.filter(x=>!x.reviewed);
+    $('cfCount').textContent=unrev.length;
     $('cfBody').innerHTML=c.conflicts.length?c.conflicts.map(x=>{
       const w=JSON.parse(x.remote_value), l=JSON.parse(x.local_value);
       const wp=w.price!==undefined?w.price:(w.stock!==undefined?w.stock:''), lp=l.price!==undefined?l.price:(l.stock!==undefined?l.stock:'');
-      return `<tr><td>${x.entity_id}</td><td>₹${wp}</td><td>₹${lp}</td><td><span class="badge b-amber">${x.resolution}</span></td></tr>`;
-    }).join(''):'<tr><td colspan="4" style="color:var(--muted)">No conflicts.</td></tr>';
+      const dim=x.reviewed?' style="opacity:.5"':'';
+      return `<tr${dim}><td>${x.entity_id}</td><td>₹${wp}</td><td>₹${lp}</td><td><span class="badge b-amber">${x.resolution}</span></td><td><input type="checkbox"${x.reviewed?' checked':''} onchange="toggleReview('${x.conflict_id}',this)" title="Mark as reviewed"></td></tr>`;
+    }).join(''):'<tr><td colspan="5" style="color:var(--muted)">No conflicts.</td></tr>';
     const h=await api('/api/health');
     $('dashBody').innerHTML=h.products.map(p=>`<tr><td>${p.product_id}</td><td>${p.name}</td><td>₹${p.price.toFixed(2)}</td><td>${(p.tax_rate||0)}%</td><td>${p.stock}</td><td>${p.updated_by}</td></tr>`).join('');
   }catch(e){/* server may be starting */}
 }
-function setOnlinePillOnly(v){
-  online=v; const p=$('netPill');
-  p.textContent=v?'ONLINE':'OFFLINE'; p.className='pill '+(v?'online':'offline');
-  for(const id of ['modeBadge','modeBadge2']){
-    const el=$(id); el.classList.toggle('on',v);
-    el.textContent=id==='modeBadge2'?(v?'Online — LLM':'Offline — local intents'):(v?'Online':'Offline');
+// manager marks a conflict as reviewed
+async function toggleReview(conflict_id,el){
+  try{
+    await api('/api/conflicts/review',{method:'POST',body:JSON.stringify({conflict_id})});
+    refreshDash();
+  }catch(e){
+    el.checked=!el.checked;
+    if(e.message!=='unauthorized')toast('Review failed: '+e.message);
   }
 }
+function setOnlinePillOnly(v){  online=v; const p=$('netPill');
+  p.textContent=v?'ONLINE':'OFFLINE'; p.className='pill '+(v?'online':'offline');
+}
 $('syncBtn').addEventListener('click',async()=>{
-  $('syncNote').textContent='Syncing…';
+  $('syncNote').textContent='Syncing all counters…';
   try{
     const r=await api('/api/sync/now',{method:'POST'});
-    $('syncNote').textContent=r.ok?`Done — pushed ${r.pushed_txns} txn(s), ${r.pushed_deltas} delta(s), ${r.pushed_updates} update(s), ${r.retries} retries, ${r.conflicts.length} conflict(s).`:'Sync deferred: '+r.error;
+    const parts=Object.entries(r.terminals).map(([tid,t])=>
+      t.ok?`${tid}: pushed ${t.pushed_txns} txn(s), ${t.pushed_deltas} delta(s), ${t.conflicts.length} conflict(s)`
+          :`${tid}: deferred (${t.error})`);
+    $('syncNote').textContent=(r.ok?'Done — ':'Attention — ')+parts.join(' · ');
     refreshDash(); loadProducts();
   }catch(e){toast('Sync failed: '+e.message);}
 });
+
 $('printBtn').addEventListener('click',async()=>{
   if(!lastSale)return;
   $('printNote').textContent='Printing…';
@@ -411,6 +453,22 @@ $('printBtn').addEventListener('click',async()=>{
     const r=await api('/api/receipt/print',{method:'POST',body:JSON.stringify({sale:lastSale,terminal})});
     $('printNote').textContent='Printed via '+r.via+'.';
   }catch(e){if(e.message!=='unauthorized')$('printNote').textContent='Print failed: '+e.message;}
+});
+$('dlBtn').addEventListener('click',async()=>{
+  if(!lastSale)return;
+  $('printNote').textContent='Downloading…';
+  try{
+    const r=await fetch('/api/receipt/download?terminal='+terminal+'&txn_id='+encodeURIComponent(lastSale.txn_id),{headers:authHeaders()});
+    if(r.status===401){showLogin('Session expired — please sign in again.');return;}
+    if(!r.ok)throw new Error((await r.json().catch(()=>({}))).detail||r.statusText);
+    const blob=await r.blob();
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='receipt_'+lastSale.txn_id.slice(0,8)+'_'+terminal+'.txt';
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+    $('printNote').textContent='Downloaded.';
+  }catch(e){$('printNote').textContent='Download failed: '+e.message;}
 });
 $('conflictBtn').addEventListener('click',async()=>{
   try{
@@ -431,8 +489,6 @@ async function ask(q){
   bubble(q,'user');
   try{
     const r=await api('/api/chat/ask',{method:'POST',body:JSON.stringify({question:q})});
-    const el=$('modeBadge2'); el.classList.toggle('on',r.mode==='online');
-    el.textContent=r.mode==='online'?'Online — LLM':'Offline — local intents';
     bubble(r.answer.replace(/\n/g,'<br>'),'bot');
   }catch(e){if(e.message!=='unauthorized')toast('Chat failed: '+e.message);}
 }
