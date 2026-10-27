@@ -79,6 +79,51 @@
   .login-card .err{color:var(--red);font-size:13px;min-height:18px;margin-bottom:6px}
   .userchip{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
   .userchip button{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:4px 10px;cursor:pointer;font-size:12px}
+  .prod{transition:transform .12s,border-color .12s}.prod:active{transform:scale(.96)}
+  .prod.pop{animation:pop .35s}@keyframes pop{40%{transform:scale(1.06);border-color:var(--green)}}
+  .low{display:inline-block;margin-top:6px;font-size:11px;font-weight:700;color:var(--amber)}
+  .fchips{display:flex;gap:8px;margin-bottom:12px}
+  .fchip{background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:999px;padding:5px 12px;font-size:12px;cursor:pointer}
+  .fchip.on{background:var(--blue);border-color:var(--blue);color:#fff}
+  .xbtn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px}.xbtn:hover{color:var(--red)}
+  .tabbadge{background:var(--amber);color:#000;border-radius:999px;font-size:11px;font-weight:800;padding:1px 7px;margin-left:6px}
+  .spin{display:inline-block;width:14px;height:14px;border:2px solid #fff6;border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;margin-right:6px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  kbd{background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:0 5px;font-size:11px}
+
+  /* ---- vivid theme ---- */
+  :root{--bg:#0d1020;--surface:#161a2e;--surface2:#1f2440;--text:#f4f5ff;--muted:#9aa2c7;--border:#2b3157;
+    --green:#2ee6a6;--red:#ff5d73;--amber:#ffb547;--blue:#6d7cff;--coral:#ff7a59;--grad:linear-gradient(135deg,#6d7cff,#b06bff)}
+  body{background:radial-gradient(900px 520px at 8% -10%,#3a41a655,transparent),radial-gradient(800px 520px at 100% 0,#8a2f7a40,transparent),var(--bg);background-attachment:fixed}
+  header{background:rgba(22,26,46,.78);backdrop-filter:blur(12px);box-shadow:0 4px 24px #0005}
+  .logo span{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  nav button{border-radius:999px;border-bottom:none;padding:8px 18px;margin-right:2px;transition:background .15s,color .15s}
+  nav button:hover{background:var(--surface2);color:var(--text)}
+  nav button.active{background:var(--grad);color:#fff;box-shadow:0 4px 14px #6d7cff55}
+  .card{border-radius:16px;box-shadow:0 10px 32px #0006}
+  .card h3{text-transform:none;letter-spacing:0;font-size:16px;color:var(--text)}
+  .prod{border-radius:14px;background:linear-gradient(160deg,var(--surface2),var(--surface));transition:transform .15s,box-shadow .15s,border-color .15s}
+  .prod:hover{transform:translateY(-3px);box-shadow:0 12px 26px #6d7cff33}
+  .ava{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-weight:800;font-size:14px;color:#fff;margin-bottom:10px;box-shadow:0 4px 12px #0005}
+  .btn{background:var(--grad);box-shadow:0 6px 18px #6d7cff44;transition:transform .12s,filter .12s}
+  .btn:hover:not(:disabled){transform:translateY(-1px);filter:brightness(1.1)}
+  .btn.green{background:linear-gradient(135deg,#1fd1a0,#2ee6a6);color:#05281d;box-shadow:0 6px 18px #2ee6a644}
+  .btn.ghost{background:var(--surface2);box-shadow:none;color:var(--text)}
+  #chargeBtn{background:linear-gradient(135deg,var(--coral),var(--amber));color:#2a1200;box-shadow:0 6px 20px #ff7a5955}
+  #chargeBtn:disabled{background:var(--surface2);color:var(--muted);box-shadow:none}
+  #cartTotal{color:var(--green);font-size:26px}
+  .pill{box-shadow:0 0 0 0 transparent}.pill.online{color:#04271b;box-shadow:0 0 18px #2ee6a688}.pill.offline{box-shadow:0 0 18px #ff5d7366}
+  .stat{border-radius:14px;border-top:3px solid var(--blue);background:linear-gradient(180deg,var(--surface2),var(--surface))}
+  .stat:nth-child(2){border-top-color:var(--amber)}.stat:nth-child(3){border-top-color:var(--coral)}.stat:nth-child(4){border-top-color:var(--green)}
+  .stat .v{font-size:32px}
+  tbody tr:hover td{background:#ffffff08}
+  .msg.user{background:var(--grad)}.msg.bot{border:1px solid var(--border)}
+  .chip:hover,.fchip:hover{border-color:var(--blue);color:var(--text)}.fchip.on{background:var(--grad);border-color:transparent}
+  .login-card{border-radius:20px;box-shadow:0 24px 70px #6d7cff33}
+  #loginOverlay{background:radial-gradient(800px 500px at 20% 0,#3a41a666,transparent),radial-gradient(700px 500px at 90% 100%,#8a2f7a55,transparent),var(--bg)}
+  #toast{box-shadow:0 8px 24px #0008;border-radius:12px}
+  .screen.active{animation:fin .25s ease}@keyframes fin{from{opacity:0;transform:translateY(6px)}}
+  @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
@@ -104,7 +149,7 @@
 </div>
 <nav>
   <button class="active" data-tab="billing">Billing</button>
-  <button data-tab="dash">Sync Dashboard</button>
+  <button data-tab="dash">Sync Dashboard<span class="tabbadge" id="pendBadge" style="display:none"></span></button>
   <button data-tab="chat">Assistant</button>
 </nav>
 <main>
@@ -115,8 +160,9 @@
           <input class="search" id="search" placeholder="Search or scan barcode…">
           <button class="btn" id="scanBtn">📷 Scan</button>
         </div>
+        <div class="fchips"><button class="fchip on" data-f="all">All</button><button class="fchip" data-f="in">In stock</button><button class="fchip" data-f="low">Low stock</button></div>
         <div class="products" id="prodGrid"></div>
-        <p class="note">USB scanners work too — just scan into the search box and hit Enter.</p>
+        <p class="note">USB scanners work too — just scan into the search box and hit Enter. Shortcuts: <kbd>/</kbd> search · <kbd>Ctrl</kbd>+<kbd>Enter</kbd> charge · <kbd>Esc</kbd> close.</p>
       </div>
       <div class="card"><h3>Cart</h3>
         <div id="cartLines"></div>
@@ -124,6 +170,7 @@
         <div class="total" style="font-weight:normal;font-size:14px"><span>Est. tax</span><span id="cartTax">₹0.00</span></div>
         <div class="total"><span>Total</span><span id="cartTotal">₹0.00</span></div>
         <button class="btn" id="chargeBtn" disabled>Charge</button>
+        <button class="btn ghost" id="clearBtn" style="display:none">Clear cart</button>
         <p class="note">Charge works offline — the sale is stored locally and syncs later.</p>
       </div>
     </div>
@@ -193,7 +240,7 @@
 let terminal='COUNTER-1', online=false, products=[], cart={}, lastSale=null;
 let authToken=sessionStorage.getItem('op_token'), authRole=sessionStorage.getItem('op_role'), authName=sessionStorage.getItem('op_name');
 const $=id=>document.getElementById(id);
-function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',3500);}
+function toast(m,k){const t=$('toast');t.textContent=m;t.style.background=k==='ok'?'var(--green)':k==='info'?'var(--blue)':'var(--red)';t.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>t.style.display='none',k?2200:3500);}
 function authHeaders(){const h={'Content-Type':'application/json'};if(authToken)h['Authorization']='Bearer '+authToken;return h;}
 async function api(path,opts={}){
   opts.headers=Object.assign(authHeaders(),opts.headers||{});
@@ -291,18 +338,29 @@ async function loadProducts(){
   try{products=(await api('/api/products')).products; renderProds($('search').value);}
   catch(e){toast('Failed to load products: '+e.message);}
 }
+let pf='all';
 function renderProds(f=''){
   const g=$('prodGrid'); g.innerHTML='';
-  products.filter(p=>(p.name+p.product_id).toLowerCase().includes(f.toLowerCase())).forEach(p=>{
-    const d=document.createElement('div');
+  products.filter(p=>(p.name+p.product_id).toLowerCase().includes(f.toLowerCase())&&(pf==='all'||(pf==='in'&&p.stock>0)||(pf==='low'&&p.stock>0&&p.stock<=10))).forEach(p=>{
+    const d=document.createElement('div'); d.dataset.id=p.product_id;
     d.className='prod'+(p.stock<=0?' out':'');
-const stockTxt=p.stock>0?`${p.stock} in stock`:'Out of stock';
-d.innerHTML=`<div class="nm">${p.name}</div><div class="pr">₹${p.price.toFixed(2)}</div><div class="st">${stockTxt}${p.barcode?'<br>⛁ '+p.barcode:''}</div>`;
-
-    if(p.stock>0) d.onclick=()=>{cart[p.product_id]=(cart[p.product_id]||0)+1;renderCart();};
+    const inCart=cart[p.product_id]||0;
+    let h=0;for(const ch of p.product_id+p.name)h=(h*31+ch.charCodeAt(0))%360;
+    d.innerHTML=`<div class="ava" style="background:linear-gradient(135deg,hsl(${h} 70% 50%),hsl(${(h+45)%360} 70% 36%))">${p.name.slice(0,2).toUpperCase()}</div><div class="nm">${p.name}</div><div class="pr">₹${p.price.toFixed(2)}</div><div class="st">${p.stock>0?p.stock+' in stock':'Out of stock'}${p.barcode?'<br>⛁ '+p.barcode:''}</div>`
+      +(p.stock>0&&p.stock<=10?`<span class="low">Only ${p.stock} left</span>`:'')
+      +(inCart?`<span class="low" style="color:var(--green);margin-left:6px">${inCart} in cart</span>`:'');
+    if(p.stock>0) d.onclick=()=>addToCart(p);
     g.appendChild(d);
   });
+  if(!g.children.length) g.innerHTML='<p class="note">No products match.</p>';
 }
+function addToCart(p){
+  const q=cart[p.product_id]||0;
+  if(q>=p.stock){toast(`Only ${p.stock} of ${p.name} in stock`);return;}
+  cart[p.product_id]=q+1; renderCart();
+  const n=document.querySelector(`.prod[data-id="${p.product_id}"]`); if(n)n.classList.add('pop');
+}
+document.querySelectorAll('.fchip').forEach(c=>c.onclick=()=>{pf=c.dataset.f;document.querySelectorAll('.fchip').forEach(x=>x.classList.toggle('on',x===c));renderProds($('search').value);});
 $('search').addEventListener('input',e=>renderProds(e.target.value));
 // USB barcode scanners type the digits + Enter: treat Enter as a scan.
 $('search').addEventListener('keydown',async e=>{
@@ -375,20 +433,23 @@ function renderCart(){
     const rate=p.tax_rate||0;
     sub+=p.price*q; tax+=Math.round(p.price*q*rate)/100; n++;
     const row=document.createElement('div'); row.className='cart-line';
-    row.innerHTML=`<span class="n">${p.name}</span><button class="step" data-a="-">−</button><span class="qty">${q}</span><button class="step" data-a="+">+</button><span>₹${(p.price*q).toFixed(2)}</span>`;
+    row.innerHTML=`<span class="n">${p.name}</span><button class="step" data-a="-">−</button><span class="qty">${q}</span><button class="step" data-a="+">+</button><span>₹${(p.price*q).toFixed(2)}</span><button class="xbtn" title="Remove">✕</button>`;
     row.querySelector('[data-a="-"]').onclick=()=>{cart[id]--;if(cart[id]<=0)delete cart[id];renderCart();};
-    row.querySelector('[data-a="+"]').onclick=()=>{cart[id]++;renderCart();};
+    row.querySelector('[data-a="+"]').onclick=()=>{if(cart[id]>=p.stock){toast(`Only ${p.stock} of ${p.name} in stock`);return;}cart[id]++;renderCart();};
+    row.querySelector('.xbtn').onclick=()=>{delete cart[id];renderCart();};
     box.appendChild(row);
   }
   if(!n) box.innerHTML='<p style="color:var(--muted);font-size:14px">Tap a product to add it.</p>';
   $('cartSubtotal').textContent='₹'+sub.toFixed(2);
   $('cartTax').textContent='₹'+tax.toFixed(2);
   $('cartTotal').textContent='₹'+(sub+tax).toFixed(2);
-  $('chargeBtn').disabled=!n;
+  $('chargeBtn').disabled=!n; $('clearBtn').style.display=n?'':'none';
+  if(products.length)renderProds($('search').value);
 }
 $('chargeBtn').addEventListener('click',async()=>{
   const items=Object.entries(cart).map(([product_id,qty])=>({product_id,qty}));
   try{
+    $('chargeBtn').innerHTML='<span class="spin"></span>Charging…';$('chargeBtn').disabled=true;
     const r=await api('/api/cart/checkout',{method:'POST',body:JSON.stringify({items})});
     lastSale=r.sale; $('printNote').textContent='';
     $('rcptTerm').textContent=terminal;
@@ -397,9 +458,9 @@ $('chargeBtn').addEventListener('click',async()=>{
     $('rcptTax').textContent='₹'+(r.sale.tax_total??0).toFixed(2);
     $('rcptTotal').textContent='₹'+r.sale.total.toFixed(2);
     $('rcptTxn').textContent=r.sale.txn_id.slice(0,8);
-    $('receiptModal').classList.add('show');
+    $('receiptModal').classList.add('show'); toast('Sale complete ✓','ok');
     cart={}; renderCart(); loadProducts(); refreshDash();
-  }catch(e){toast('Checkout failed: '+e.message);}
+  }catch(e){toast('Checkout failed: '+e.message);}finally{$('chargeBtn').textContent='Charge';renderCart();}
 });
 // dashboard
 async function refreshDash(){
@@ -407,6 +468,7 @@ async function refreshDash(){
     const s=await api('/api/sync/status');
     setOnlinePillOnly(s.online);
     $('stTx').textContent=s.pending.txns; $('stDe').textContent=s.pending.deltas; $('stUp').textContent=s.pending.updates;
+    {const pn=s.pending.txns+s.pending.deltas+s.pending.updates,pb=$('pendBadge');pb.textContent=pn;pb.style.display=pn?'':'none';}
     $('stLa').textContent=s.last_sync_ts?new Date(+s.last_sync_ts*1000).toLocaleTimeString():'never';
     const c=await api('/api/conflicts');
     const unrev=c.conflicts.filter(x=>!x.reviewed);
@@ -435,15 +497,18 @@ function setOnlinePillOnly(v){  online=v; const p=$('netPill');
   p.textContent=v?'ONLINE':'OFFLINE'; p.className='pill '+(v?'online':'offline');
 }
 $('syncBtn').addEventListener('click',async()=>{
+  const sb=$('syncBtn'); sb.disabled=true; sb.innerHTML='<span class="spin"></span>Syncing…';
   $('syncNote').textContent='Syncing all counters…';
   try{
     const r=await api('/api/sync/now',{method:'POST'});
-    const parts=Object.entries(r.terminals).map(([tid,t])=>
-      t.ok?`${tid}: pushed ${t.pushed_txns} txn(s), ${t.pushed_deltas} delta(s), ${t.conflicts.length} conflict(s)`
+    const parts=Object.entries(r.terminals||{[terminal]:r}).map(([tid,t])=>
+      t.ok?`${tid}: pushed ${t.pushed_txns} txn(s), ${t.pushed_deltas} delta(s), ${(t.conflicts||[]).length} conflict(s)`
           :`${tid}: deferred (${t.error})`);
     $('syncNote').textContent=(r.ok?'Done — ':'Attention — ')+parts.join(' · ');
     refreshDash(); loadProducts();
+    toast(r.ok?'Synced ✓ both counters are up to date':'Sync needs attention',r.ok?'ok':undefined);
   }catch(e){toast('Sync failed: '+e.message);}
+  finally{sb.disabled=false;sb.textContent='Sync all counters';}
 });
 
 $('printBtn').addEventListener('click',async()=>{
@@ -507,7 +572,21 @@ $('chatIn').addEventListener('keydown',e=>{if(e.key==='Enter')$('sendBtn').click
   }
   showLogin();
 })();
-setInterval(()=>{if($('tab-dash').classList.contains('active')&&authToken)refreshDash();},4000);
+setInterval(()=>{if(authToken&&authRole==='manager'&&!document.hidden)refreshDash();},4000);
+$('clearBtn').onclick=()=>{cart={};renderCart();toast('Cart cleared','info');};
+document.addEventListener('keydown',e=>{
+  const typing=/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+  if(e.key==='/'&&!typing){e.preventDefault();$('search').focus();}
+  if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)&&!$('chargeBtn').disabled)$('chargeBtn').click();
+  if(e.key==='Escape'){
+    if($('scanModal').classList.contains('show'))stopScan();
+    document.querySelectorAll('.modal.show').forEach(m=>m.classList.remove('show'));
+    if($('search').value){$('search').value='';renderProds('');}
+  }
+});
+document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{
+  if(e.target!==m)return; if(m.id==='scanModal')stopScan(); else m.classList.remove('show');
+}));
 </script>
 </body>
 </html>
